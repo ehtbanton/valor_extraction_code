@@ -17,15 +17,14 @@ def get_pdd_targets(contents_list):
             page_num = line.split()[-1]
             # section heading, subheading title, subheading idx, page num
             pdd_targets.append((section_heading, subheading, subheading_idx, page_num))
-
-            pdd_targets = add_subheading_info(pdd_targets)
     return pdd_targets
 
 
-def add_subheading_info(pdd_targets):
-    for i in range(len(pdd_targets)):
-        print(f"\nHeading: {pdd_targets[i][0]} \nSubheading Title: {pdd_targets[i][1]} \nSubheading Index: {pdd_targets[i][2]} \nPage Number: {pdd_targets[i][3]}")
-        if i != len(pdd_targets) - 1:
-            
-    return relevant_info
+def structure_response(target_info): # To require the LLM to output info in a certain format. target_info should contain a field saying whether there are any tables to fill in etc.
+    pass
+
+
+
+
+
 
