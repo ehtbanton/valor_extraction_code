@@ -69,7 +69,7 @@ def ask_gemini(
     uploaded_files = []
 
     if file_paths:
-        print(f"Uploading {len(file_paths)} file(s)...")
+        print(f"\nUploading {len(file_paths)} file(s)...")
         for file_path in file_paths:
             try:
                 # Upload the file and get a file handle
@@ -85,7 +85,7 @@ def ask_gemini(
 
     try:
         # Get the response from the model
-        print("Generating content from prompt and files...")
+        print("Generating content from prompt and files...\n")
         response = agent.generate_content(content)
         return response.text
     except Exception as e:
