@@ -10,7 +10,7 @@ import os
 
 from gemini_interface import setup_gemini, ask_gemini
 from file_manager import name_files_in_folder
-from text_processing import retrieve_contents_list, get_pdd_targets, get_infilling_info#, assemble_user_prompt, assemble_system_prompt, is_valid_response
+from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location#, assemble_user_prompt, assemble_system_prompt, is_valid_response
 from template_text_loader import load_word_doc_to_string
 
 template_text = load_word_doc_to_string("output_template") #loads from folder
@@ -28,14 +28,13 @@ output_path = f"auto_pdd_output/AutoPDD_{project_name}.docx"
 
 GEMINI_CLIENT = setup_gemini()
 
-target_num = -1
-for target in pdd_targets:
-    target_num += 1
 
+for target_idx,target in enumerate(pdd_targets):
     # Find location of target in word file. Use the python-docx library.
     # Retrieve specific instructions and infilling info (e.g. is a table present?).
-    infilling_info = get_infilling_info(pdd_targets, target_num, template_text) # Get some array of tuples [(start location, end location, infilling_type, infilling_instructions), ...]
-    
+    start_loc = find_target_location(target, template_text)
+    end_loc = find_target_location(pdd_targets[target_idx+1], template_text)
+    infilling_info = template_text[start_loc:end_loc]
 
     # Create a detailed system prompt for the LLM. Defines an interpretable text-based format which aligns with the template. This should be the same for the input and output.
     system_prompt = assemble_system_prompt(infilling_info)
