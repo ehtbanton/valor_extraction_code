@@ -6,15 +6,10 @@
 # - Add required library imports and auto loading
 # - Trial ways of a) using text processing ONLY rather than giving Gemini the PDFs, and b) using lower context lengths.
 
-import os
 from gemini_interface import setup_gemini, ask_gemini
-
 from file_manager import extract_text_from_folder, name_files_in_folder
 from text_processing import retrieve_contents_list, get_pdd_targets
-from word_editor import get_target_info
-
-
-
+# from word_editor 
 
 template_text = extract_text_from_folder("output_template")
 contents_list = retrieve_contents_list(template_text)
@@ -31,9 +26,7 @@ GEMINI_CLIENT = setup_gemini()
 # Make a new named copy of the template in the auto_pdd_output folder. Name it after the folder name in provided_documents (e.g. here use "AutoPDD_prime_road.docx")
 
 for target in pdd_targets:
-    # Get target information
-    target_info = get_target_info(target)
-
+    
     # Find location of target in word file. Use the python-docx library.
 
     # Retrieve specific instructions and infilling info (e.g. is a table present?).
@@ -46,6 +39,7 @@ for target in pdd_targets:
     # Loop:
         # Prompt the LLM using the CLIENT, user prompt, system prompt, and folder dir of all relevant company files.
         # It should be a PRECISELY STRUCTURED RESPONSE. Make sure to allow it to also say it wasn't able to find the relevant info!
+        # response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, provided_files_list)
 
         # Check if the response is the correct format/structure. If it isn't, try again. Repeat up to 10 times?
 

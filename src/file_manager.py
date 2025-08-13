@@ -1,7 +1,3 @@
-# First, you need to install the necessary libraries.
-# Open your terminal or command prompt and run:
-# pip install PyPDF2
-# pip install python-docx
 
 import os
 import PyPDF2
