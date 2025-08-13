@@ -7,39 +7,34 @@
 # - Trial ways of a) using text processing ONLY rather than giving Gemini the PDFs, and b) using lower context lengths.
 
 import os
-#from gemini_interface import setup_gemini, ask_gemini
-#from file_manager import extract_text_from_folder, name_files_in_folder
 
-from text_processing import retrieve_contents_list, get_pdd_targets#, assemble_user_prompt, assemble_system_prompt, is_valid_response
-#from word_editor import get_infilling_info, fill_in_output_doc
+from gemini_interface import setup_gemini, ask_gemini
+from file_manager import name_files_in_folder
+from text_processing import retrieve_contents_list, get_pdd_targets, get_infilling_info#, assemble_user_prompt, assemble_system_prompt, is_valid_response
 from template_text_loader import load_word_doc_to_string
 
-template_text = load_word_doc_to_string("output_template")
+template_text = load_word_doc_to_string("output_template") #loads from folder
 #print(f"Template text:\n\n{template_text}")
 
 contents_list = retrieve_contents_list(template_text)
-print("Contents List:\n" + contents_list)
-
-
+#print("Contents List:\n" + contents_list)
 
 pdd_targets = get_pdd_targets(contents_list) # should be an array of tuples containing (section_heading, subheading, subheading_idx, page_num)
 print("PDD Targets:" + str(pdd_targets))
-
-input()
-
 
 project_name = "prime_road"
 provided_files_list = name_files_in_folder(f"provided_documents/{project_name}")
 output_path = f"auto_pdd_output/AutoPDD_{project_name}.docx"
 
-
 GEMINI_CLIENT = setup_gemini()
+
+target_num = -1
 for target in pdd_targets:
-    print(f"Target idx: {target.subheading_idx}")
+    target_num += 1
 
     # Find location of target in word file. Use the python-docx library.
     # Retrieve specific instructions and infilling info (e.g. is a table present?).
-    infilling_info = get_infilling_info(target.subheading_idx, template_folder) # Get some array of tuples [(start location, end location, infilling_type, infilling_instructions), ...]
+    infilling_info = get_infilling_info(pdd_targets, target_num, template_text) # Get some array of tuples [(start location, end location, infilling_type, infilling_instructions), ...]
     
 
     # Create a detailed system prompt for the LLM. Defines an interpretable text-based format which aligns with the template. This should be the same for the input and output.
