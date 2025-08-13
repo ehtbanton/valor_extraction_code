@@ -27,7 +27,7 @@ def setup_gemini():
         genai.configure(api_key=api_key)
 
         # Create the model. 'gemini-1.5-flash' is a powerful multimodal model.
-        agent = genai.GenerativeModel('gemini-1.5-flash')
+        agent = genai.GenerativeModel('gemini-2.5-flash')
         return agent
     except Exception as e:
         print(f"An error occurred during setup: {e}")

@@ -10,7 +10,7 @@ def get_pdd_targets(contents_list):
     section_heading = ""
     for line in contents_list.splitlines():
         if line.strip() and not line.startswith("Contents"):
-            print(line)
+            #print(line)
             if "." not in line.split()[0]:
                 section_heading = " ".join(line.split()[1:-1])
             else:
@@ -39,16 +39,17 @@ def find_target_location(target,template_text):
 
 
 
-def assemble_user_prompt(target, infilling_info):
+def assemble_user_prompt(infilling_info):
     # User prompt contains the exact information source from the TEMPLATE.
-    pass
+    user_prompt = infilling_info.strip()
+    return user_prompt
 
-
-def assemble_system_prompt(infilling_info): # only 
+def assemble_system_prompt():
     # System prompt contains a static description of how to produce output. An EXACT FORMAT.
-    pass
+    system_prompt = "You are being provided with a template for your response by the user. It contains a list of short descriptions of information you will have to find in the attached documents. Please attempt to locate all relevant information from the attached documents. Ensure your response follows the same format as the user prompt. Specifically, put paragraphs in the same places outlined by the user-provided template, and use the same format as they do for tables. If no relevant information can be found for any part of the template, please write that this is the case in caps at this point in your filled-in template. Ensure your filled-in template format and structure is identical to the template provided by the user. Your response should only contain the filled-in template and no other text."
+    return system_prompt
 
-#def is_valid_response(response, infilling_info):
-
-
+def is_valid_response(response, infilling_info):
+    # For now make no checks
+    return True
 
