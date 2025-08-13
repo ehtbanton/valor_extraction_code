@@ -20,11 +20,17 @@ def get_pdd_targets(contents_list):
     return pdd_targets
 
 
-def structure_response(target_info): # To require the LLM to output info in a certain format. target_info should contain a field saying whether there are any tables to fill in etc.
-    pass
+#def assemble_user_prompt()
 
 
 
+
+#def assemble_system_prompt() 
+
+
+
+
+#def is_valid_response(response, infilling_info):
 
 
 
