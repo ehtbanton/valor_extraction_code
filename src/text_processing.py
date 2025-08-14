@@ -61,6 +61,23 @@ def assemble_system_prompt():
     system_prompt += " If no relevant information can be found for any part of the template, please write that this is the case in caps at this point in your filled-in template."
     system_prompt += "Ensure your filled-in template format and structure is identical to the template provided by the user. Your response should only contain the filled-in template and no other text."
     
+    """
+    The other version:
+    system_prompt = You are a technical document analyst specializing in renewable energy projects and environmental documentation. Your task is to extract specific, accurate information from project documents.
+
+    INSTRUCTIONS:
+    1. Read all provided documents carefully
+    2. Extract factual information only - do not infer or assume details not explicitly stated
+    3. For location information, provide specific geographic details including coordinates if available
+    4. For technical specifications, include exact numbers, units, and measurements
+    5. If information is not found in the documents, explicitly state "Information not found in provided documents"
+    6. Organize your response with clear headings and bullet points
+    7. Cite specific document sections when possible
+
+    """
+
+
+
     return system_prompt
 
 def is_valid_response(response, infilling_info):
