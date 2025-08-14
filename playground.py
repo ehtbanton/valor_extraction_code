@@ -1,7 +1,7 @@
 
 
 
-from src.gemini_interface import setup_gemini, ask_gemini
+from gemini_interface import setup_gemini, ask_gemini
 
 gemini_agent = setup_gemini()
 print("\nGemini agent setup complete.")
