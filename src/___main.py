@@ -1,10 +1,15 @@
 # Welcome to AutoPDD!
 
 # Todo list:
-# - Fill in basic functionality (see detailed comments in this file)
+# - Fill in basic functionality (see detailed comments in this file).
+#       WE ARE HERE. Current status: 
+#                    - Table interpretation is broken. Consider giving more rigid specific structural understanding in system prompt.
+#                      (i.e. make multiple versions of the system prompt to deal with different situations)
+#                    - May also be helpful to change how template info is provided as this may make creating specific system prompts easier.
+#                      e.g. other text formats/direct word doc snippets/screenshots could be trialled, or just using shorter chunks of text (like just a table rather than whole subheading section).
 # - Check possibility of using somebody's MCP protocol for LLM processing inputs/outputs
 # - Add required library imports and auto loading
-# - Trial ways of a) using text processing ONLY rather than giving Gemini the PDFs, and b) using lower context lengths.
+# - For later: Trial ways of a) using text processing ONLY rather than giving Gemini the PDFs, and b) using lower context lengths. Then trial local LLMs.
 
 import os
 
