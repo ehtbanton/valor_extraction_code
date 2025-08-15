@@ -6,7 +6,8 @@
 #                    - Table interpretation is broken. Consider giving more rigid specific structural understanding in system prompt.
 #                      (i.e. make multiple versions of the system prompt to deal with different situations)
 #                    - May also be helpful to change how template info is provided as this may make creating specific system prompts easier.
-#                      e.g. other text formats/direct word doc snippets/screenshots could be trialled, or just using shorter chunks of text (like just a table rather than whole subheading section).
+#                      e.g. other text formats/direct word doc snippets/screenshots could be trialled, or just using shorter chunks of text
+#                      (like just a table rather than whole subheading section). Be mindful that we want to EVENTUALLY move to text-only.
 # - Check possibility of using somebody's MCP protocol for LLM processing inputs/outputs
 # - Add required library imports and auto loading
 # - For later: Trial ways of a) using text processing ONLY rather than giving Gemini the PDFs, and b) using lower context lengths. Then trial local LLMs.
@@ -16,7 +17,7 @@ import os
 from gemini_interface import setup_gemini, ask_gemini
 from file_manager import name_files_in_folder
 from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
-from template_text_loader import load_word_doc_to_string
+from template_text_loader import load_word_doc_to_string#, fill_in_output_doc
 
 
 os.system('cls' if os.name == 'nt' else 'clear')
@@ -27,6 +28,7 @@ template_text = load_word_doc_to_string("output_template") #loads from folder
 contents_list = retrieve_contents_list(template_text)
 #print("Contents List:\n" + contents_list)
 
+### CONSIDER CHANGING if more granularity seems helpful ###
 pdd_targets = get_pdd_targets(contents_list) # should be an array of tuples containing (section_heading, subheading, subheading_idx, page_num)
 #print("PDD Targets:" + str(pdd_targets))
 
@@ -46,9 +48,9 @@ for target_idx,target in enumerate(pdd_targets):
     #print(f"\n\nInfilling Info for {target}:\n\n {infilling_info}")
 
     system_prompt = assemble_system_prompt()
-    print(f"\n\nSystem Prompt:\n{system_prompt}")
+    #print(f"\n\nSystem Prompt:\n{system_prompt}")
     user_prompt = assemble_user_prompt(infilling_info)
-    print(f"\n\nUser Prompt:\n{user_prompt}")
+    #print(f"\n\nUser Prompt:\n{user_prompt}")
 
     response = "" # initializing
     for i in range(10): # Retry up to 10 times before giving up
@@ -59,7 +61,7 @@ for target_idx,target in enumerate(pdd_targets):
             break
     print(f"\n\n\nResponse:\n\n{response}")
 
-    input()
+    input() # so we don't run through the whole template for now to save api credits...
 
     # Fill in this part of the output word doc. (May need to say the relevant info couldn't be found).
     #fill_in_output_doc(target, infilling_info, response)
