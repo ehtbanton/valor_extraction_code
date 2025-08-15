@@ -13,7 +13,7 @@
 # - For later: Trial ways of a) using text processing ONLY rather than giving Gemini the PDFs, and b) using lower context lengths. Then trial local LLMs.
 
 import os
-
+import time
 from gemini_interface import setup_gemini, ask_gemini
 from file_manager import name_files_in_folder
 from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
@@ -37,6 +37,8 @@ provided_files_list = name_files_in_folder(f"provided_documents/{project_name}")
 output_path = f"auto_pdd_output/AutoPDD_{project_name}.docx"
 
 GEMINI_CLIENT = setup_gemini()
+
+
 
 
 for target_idx,target in enumerate(pdd_targets):

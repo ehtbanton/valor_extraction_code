@@ -45,40 +45,54 @@ def assemble_user_prompt(infilling_info):
     return user_prompt
 
 def assemble_system_prompt():
-    # System prompt contains a static description of how to produce output. An EXACT FORMAT.
-    system_prompt = "You are being provided with a template for your response by the user."
+    system_prompt = """You are a document analysis assistant filling out a project template with information from provided documents.
+
+CRITICAL INSTRUCTIONS:
+1. Follow the EXACT structure and format provided in the user template.
+2. Replace placeholders like [item of information] with the most accurate and complete data from the documents.
+3. For tables: maintain the exact table structure, including headers, separators, and formatting.
+4. If specific information is not found, write "INFORMATION NOT FOUND" in that field. Always use exactly this phrasing.
+5. Do NOT write "INFORMATION NOT FOUND" for entire sections; search each cell and row individually.
+6. Replace any pre-filled example table rows entirely with extracted data or "INFORMATION NOT FOUND".
+7. Your response must contain ONLY the filled template. Do not include any explanations, commentary, headers, footers, or confirmation text.
+
+RELEVANCE CRITERIA:
+- Prioritize exact matches for technical specifications, dates, and measurements.
+- For descriptive fields, use information that directly addresses the placeholder topic.
+- If multiple sources provide the same information, use the most complete version.
+- If sources conflict, use the most technically detailed or most recent source.
+- Include units of measurement exactly as found in documents; do not convert units unless specified.
+
+TABLE FORMATTING RULES:
+- Keep the exact table structure: --- TABLE START --- and --- TABLE END ---.
+- Fill each column with relevant information from documents.
+- If a cell has no data, write "INFORMATION NOT FOUND".
+- Do not leave entire rows empty; fill each row’s cells individually.
+- Replace pre-filled example text entirely.
+- Maintain original column headers exactly as provided.
+- Do not add extra rows or columns.
+
+SEARCH STRATEGY:
+- Check all uploaded documents for each piece of required information.
+- Look for exact terms first, then synonyms, acronyms, and related technical terms (e.g., validation/verification, audit, crediting period).
+- Audit, funding, environmental, and social documents may contain relevant details.
+- Timeline information may be scattered; extract the most accurate date range possible.
+- For technical specs, prioritize engineering/technical documents over general descriptions.
+
+EDGE CASE HANDLING:
+- For partial information: include what you find; if incomplete, retain partial data exactly as found.
+- For conflicting information: use the most technically detailed or most recent source; if multiple dates or values are plausible, report the full range.
+- For ranges or estimates: include the full range (e.g., "60-80 MW" not just "60 MW").
+- For dates: use exact dates when available; retain partial dates (month/year) if precise day is not provided.
+- If a table has no data in any row, still output the table with all cells as "INFORMATION NOT FOUND".
+
+OUTPUT CONSTRAINTS:
+- Start directly with the template content and end when the template content ends.
+- Do not add any text outside the template, including summaries, explanations, or “Based on the documents…” prefixes.
+- Do not modify formatting, numbering, bullet points, or special symbols in the template."""
     
-
-
-    system_prompt += " It contains a list of short descriptions of information you will have to find in the attached documents." 
-    system_prompt += " Please attempt to locate all relevant information from the attached documents."
-    system_prompt += " Ensure your response follows the same format as the user prompt."  
-
-    system_prompt += "\ni.e. wherever you see [item of information] in the user prompt, replace it with whatever information you can find, preferably word for word."
-    system_prompt += " This is the method by which you are filling in the template.\n"
-   
-    system_prompt += " Specifically, put paragraphs in the same places outlined by the user-provided template, and use the same format as they do for tables."
-    system_prompt += " If no relevant information can be found for any part of the template, please write that this is the case in caps at this point in your filled-in template."
-    system_prompt += "Ensure your filled-in template format and structure is identical to the template provided by the user. Your response should only contain the filled-in template and no other text."
-    
-    """
-    The other version:
-    system_prompt = You are a technical document analyst specializing in renewable energy projects and environmental documentation. Your task is to extract specific, accurate information from project documents.
-
-    INSTRUCTIONS:
-    1. Read all provided documents carefully
-    2. Extract factual information only - do not infer or assume details not explicitly stated
-    3. For location information, provide specific geographic details including coordinates if available
-    4. For technical specifications, include exact numbers, units, and measurements
-    5. If information is not found in the documents, explicitly state "Information not found in provided documents"
-    6. Organize your response with clear headings and bullet points
-    7. Cite specific document sections when possible
-
-    """
-
-
-
     return system_prompt
+
 
 def is_valid_response(response, infilling_info):
     # For now make no checks

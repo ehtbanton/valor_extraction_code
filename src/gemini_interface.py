@@ -1,8 +1,10 @@
 import os
+import time
 import google.generativeai as genai
 from dotenv import load_dotenv
 import mimetypes
 from typing import List, Optional
+
 
 def setup_gemini():
     """
@@ -33,59 +35,45 @@ def setup_gemini():
         print(f"An error occurred during setup: {e}")
         return None
 
-def ask_gemini(
-    agent: genai.GenerativeModel,
-    prompt: str,
-    system_prompt: Optional[str] = None,
-    file_paths: Optional[List[str]] = None
-) -> str:
+def ask_gemini(agent: genai.GenerativeModel, prompt: str, system_prompt: str = None, file_paths: Optional[List[str]] = None, max_upload_retries: int = 3) -> str:
     """
-    Sends a prompt, an optional system prompt, and a list of files to the 
-    initialized Gemini agent and gets a response.
-
-    Args:
-        agent (genai.GenerativeModel): The initialized generative model agent.
-        prompt (str): The text prompt to send to the model.
-        system_prompt (Optional[str]): An optional system prompt to guide the 
-                                       model's behavior. Defaults to None.
-        file_paths (Optional[List[str]]): A list of paths to the files to be sent. 
-                                          Defaults to None.
-
-    Returns:
-        str: The text part of the model's response. Returns an error
-             message if the agent is not valid or an error occurs.
+    Note: I reordered parameters to match your main.py call pattern
     """
     if not agent:
-        return "Error: Gemini agent is not initialized. Please run setup_gemini() successfully."
-
-    # --- New: Combine system prompt with user prompt ---
-    # If a system prompt is provided, it's prepended to the main prompt 
-    # to guide the model's overall response.
-    full_prompt = f"{system_prompt}\n\n---\n\n{prompt}" if system_prompt else prompt
-    # --- End of new section ---
-
-    # Prepare content list with the full prompt and any files
-    content = [full_prompt]
-    uploaded_files = []
-
-    if file_paths:
-        print(f"\nUploading {len(file_paths)} file(s)...")
-        for file_path in file_paths:
-            try:
-                # Upload the file and get a file handle
-                uploaded_file = genai.upload_file(path=file_path)
-                uploaded_files.append(uploaded_file)
-                print(f"Successfully uploaded {file_path}")
-            except Exception as e:
-                # If a file fails to upload, notify the user and skip it.
-                print(f"Failed to upload {file_path}: {e}")
+        return "Error: Gemini agent is not initialized."
     
-    # Add the uploaded files to the content list for the API call
-    content.extend(uploaded_files)
-
+    complete_prompt = ""
+    if system_prompt:
+        complete_prompt = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nUSER QUERY:\n{prompt}"
+    else:
+        complete_prompt = prompt
+    
+    content = [complete_prompt]
+    uploaded_files = []
+    
+    if file_paths:
+        print(f"Uploading {len(file_paths)} file(s)...")
+        for file_path in file_paths:
+            success = False
+            for attempt in range(max_upload_retries):
+                try:
+                    uploaded_file = genai.upload_file(path=file_path)
+                    uploaded_files.append(uploaded_file)
+                    print(f"Successfully uploaded {file_path}")
+                    success = True
+                    break
+                except Exception as e:
+                    print(f"Upload attempt {attempt + 1} failed for {file_path}: {e}")
+                    if attempt < max_upload_retries - 1:
+                        time.sleep(2)  # Wait before retry
+            
+            if not success:
+                print(f"FAILED to upload {file_path} after {max_upload_retries} attempts")
+        
+        content.extend(uploaded_files)
+    
     try:
-        # Get the response from the model
-        print("Generating content from prompt and files...\n")
+        print("Generating content from prompt and files...")
         response = agent.generate_content(content)
         return response.text
     except Exception as e:
