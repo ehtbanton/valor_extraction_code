@@ -16,7 +16,7 @@ import os
 import time
 from gemini_interface import setup_gemini, ask_gemini
 from file_manager import name_files_in_folder
-from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
+from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response, create_followup_prompt, count_missing_fields, merge_followup_response
 from template_text_loader import load_word_doc_to_string#, fill_in_output_doc
 
 
@@ -47,22 +47,42 @@ for target_idx,target in enumerate(pdd_targets):
     start_loc = find_target_location(target, template_text)
     end_loc = find_target_location(pdd_targets[target_idx+1], template_text)
     infilling_info = template_text[start_loc:end_loc]
-    #print(f"\n\nInfilling Info for {target}:\n\n {infilling_info}")
-
+    
     system_prompt = assemble_system_prompt()
-    #print(f"\n\nSystem Prompt:\n{system_prompt}")
     user_prompt = assemble_user_prompt(infilling_info)
-    #print(f"\n\nUser Prompt:\n{user_prompt}")
 
-    response = "" # initializing
-    for i in range(10): # Retry up to 10 times before giving up
+    response = ""
+    # Primary search attempt
+    for i in range(10):
         response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, provided_files_list)
-        # It should be a PRECISELY STRUCTURED RESPONSE. Make sure to allow it to also say it wasn't able to find the relevant info!
-        # Check if the response is the correct format/structure. If it isn't, try again.
         if is_valid_response(response, infilling_info):
             break
-    print(f"\n\n\nResponse:\n\n{response}")
-
+    
+    # Check for missing information and do targeted follow-up
+    missing_count = count_missing_fields(response)
+    if missing_count > 0:
+        print(f"Found {missing_count} missing fields, performing targeted search...")
+        
+        followup_prompt = create_followup_prompt(response, infilling_info)
+        if followup_prompt:
+            # Attempt follow-up search
+            followup_response = ask_gemini(GEMINI_CLIENT, followup_prompt, system_prompt, provided_files_list)
+            print(f"Follow-up search completed.")
+            
+            # Try to merge findings back into original response
+            original_missing = missing_count
+            updated_response = merge_followup_response(response, followup_response)
+            new_missing = count_missing_fields(updated_response)
+            
+            if new_missing < original_missing:
+                print(f"Follow-up successful: reduced missing fields from {original_missing} to {new_missing}")
+                response = updated_response
+            else:
+                print(f"Follow-up did not find additional information")
+            
+            print(f"\nFollow-up details:\n{followup_response}")
+    
+    print(f"\n\n\nFinal Response:\n\n{response}")
     input() # so we don't run through the whole template for now to save api credits...
 
     # Fill in this part of the output word doc. (May need to say the relevant info couldn't be found).

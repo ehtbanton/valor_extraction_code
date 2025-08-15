@@ -56,6 +56,23 @@ CRITICAL INSTRUCTIONS:
 6. Replace any pre-filled example table rows entirely with extracted data or "INFORMATION NOT FOUND".
 7. Your response must contain ONLY the filled template. Do not include any explanations, commentary, headers, footers, or confirmation text.
 
+EXHAUSTIVE SEARCH REQUIREMENTS:
+- Before marking ANY field as "INFORMATION NOT FOUND", perform THREE separate search passes:
+  PASS 1: Search for exact terminology from the template
+  PASS 2: Search for synonyms, related terms, and technical variations
+  PASS 3: Search for contextual information that could be interpreted as the required data
+- Look in ALL document types: technical specs may be in environmental docs, dates may be in funding docs
+- Check document titles, headers, footers, and metadata sections
+- Look for information in charts, graphs, and table captions
+- Search for partial matches that could be combined to create complete answers
+
+EXPANDED SEARCH TERMS:
+- Validation → verification, assessment, evaluation, review, approval, certification
+- Audit → monitoring, inspection, compliance check, oversight, review
+- Timeline → schedule, phases, milestones, implementation period, duration
+- Capacity → power rating, output, generation capacity, installed capacity
+- Location → site, coordinates, address, geographic position, project area
+
 RELEVANCE CRITERIA:
 - Prioritize exact matches for technical specifications, dates, and measurements.
 - For descriptive fields, use information that directly addresses the placeholder topic.
@@ -67,17 +84,10 @@ TABLE FORMATTING RULES:
 - Keep the exact table structure: --- TABLE START --- and --- TABLE END ---.
 - Fill each column with relevant information from documents.
 - If a cell has no data, write "INFORMATION NOT FOUND".
-- Do not leave entire rows empty; fill each row’s cells individually.
+- Do not leave entire rows empty; fill each row's cells individually.
 - Replace pre-filled example text entirely.
 - Maintain original column headers exactly as provided.
 - Do not add extra rows or columns.
-
-SEARCH STRATEGY:
-- Check all uploaded documents for each piece of required information.
-- Look for exact terms first, then synonyms, acronyms, and related technical terms (e.g., validation/verification, audit, crediting period).
-- Audit, funding, environmental, and social documents may contain relevant details.
-- Timeline information may be scattered; extract the most accurate date range possible.
-- For technical specs, prioritize engineering/technical documents over general descriptions.
 
 EDGE CASE HANDLING:
 - For partial information: include what you find; if incomplete, retain partial data exactly as found.
@@ -88,7 +98,7 @@ EDGE CASE HANDLING:
 
 OUTPUT CONSTRAINTS:
 - Start directly with the template content and end when the template content ends.
-- Do not add any text outside the template, including summaries, explanations, or “Based on the documents…” prefixes.
+- Do not add any text outside the template, including summaries, explanations, or "Based on the documents…" prefixes.
 - Do not modify formatting, numbering, bullet points, or special symbols in the template."""
     
     return system_prompt
@@ -97,4 +107,75 @@ OUTPUT CONSTRAINTS:
 def is_valid_response(response, infilling_info):
     # For now make no checks
     return True
+
+def create_followup_prompt(response, infilling_info):
+    """Create a targeted follow-up prompt for missing information"""
+    
+    missing_fields = []
+    for line in response.split('\n'):
+        if "INFORMATION NOT FOUND" in line:
+            # Extract context around the missing field
+            missing_fields.append(line.strip())
+    
+    if not missing_fields:
+        return None
+    
+    followup_prompt = f"""The following specific information was marked as "INFORMATION NOT FOUND" in a previous analysis:
+
+{chr(10).join(missing_fields)}
+
+Please perform a comprehensive re-search of ALL uploaded documents specifically for this missing information. Look for:
+- Alternative terminology and synonyms
+- Information that might be embedded in longer paragraphs
+- Data in unexpected document sections (e.g., technical specs in environmental docs)
+- Partial information that could be pieced together
+- Information in document metadata, headers, or appendices
+
+For each missing item, provide either:
+1. The specific information found (with source context)
+2. Confirmation that it truly does not exist in any document
+
+Format your response as:
+FIELD: [found information OR "CONFIRMED NOT FOUND"]
+"""
+    
+    return followup_prompt
+
+def count_missing_fields(response):
+    """Count how many fields are marked as INFORMATION NOT FOUND"""
+    return response.count("INFORMATION NOT FOUND")
+
+def merge_followup_response(original_response, followup_response):
+    """Merge follow-up findings back into original response"""
+    lines = original_response.split('\n')
+    
+    # Parse followup response for found information
+    followup_findings = {}
+    for line in followup_response.split('\n'):
+        if ':' in line and ('FIELD:' in line or any(keyword in line.upper() for keyword in ['VALIDATION', 'AUDIT', 'PERIOD', 'BODY', 'YEARS'])):
+            parts = line.split(':', 1)
+            if len(parts) == 2:
+                field_context = parts[0].strip()
+                found_info = parts[1].strip()
+                if found_info != "CONFIRMED NOT FOUND" and "NOT FOUND" not in found_info:
+                    followup_findings[field_context] = found_info
+    
+    # Replace INFORMATION NOT FOUND with found information
+    updated_lines = []
+    for line in lines:
+        if "INFORMATION NOT FOUND" in line and followup_findings:
+            # Try to match this line with followup findings
+            line_updated = False
+            for field_context, found_info in followup_findings.items():
+                # Simple matching - could be made more sophisticated
+                if any(word in line.upper() for word in field_context.upper().split()):
+                    updated_lines.append(line.replace("INFORMATION NOT FOUND", found_info))
+                    line_updated = True
+                    break
+            if not line_updated:
+                updated_lines.append(line)
+        else:
+            updated_lines.append(line)
+    
+    return '\n'.join(updated_lines)
 
