@@ -16,8 +16,9 @@ import os
 import time
 from gemini_interface import setup_gemini, ask_gemini
 from file_manager import name_files_in_folder
-from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response, create_followup_prompt, count_missing_fields, merge_followup_response
+from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response, create_followup_prompt, count_missing_fields, merge_followup_response, validate_response_accuracy
 from template_text_loader import load_word_doc_to_string#, fill_in_output_doc
+
 
 
 os.system('cls' if os.name == 'nt' else 'clear')
@@ -47,16 +48,29 @@ for target_idx,target in enumerate(pdd_targets):
     start_loc = find_target_location(target, template_text)
     end_loc = find_target_location(pdd_targets[target_idx+1], template_text)
     infilling_info = template_text[start_loc:end_loc]
-    
+
     system_prompt = assemble_system_prompt()
     user_prompt = assemble_user_prompt(infilling_info)
 
     response = ""
-    # Primary search attempt
-    for i in range(10):
+    # Primary search attempt with validation
+    for i in range(5):  # Reduced from 10 to focus on quality
         response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, provided_files_list)
+        
         if is_valid_response(response, infilling_info):
-            break
+            # Validate accuracy
+            validation_prompt = validate_response_accuracy(response, user_prompt)
+            validation_result = ask_gemini(GEMINI_CLIENT, validation_prompt, "", provided_files_list)
+            
+            if "VALIDATION PASSED" in validation_result:
+                print(f"✅ Response validated as accurate")
+                break
+            else:
+                print(f"❌ Validation failed, retrying... Issues found:")
+                print(validation_result[:200] + "...")
+                continue
+        else:
+            print(f"❌ Response format invalid, retrying...")
     
     # Check for missing information and do targeted follow-up
     missing_count = count_missing_fields(response)
@@ -65,22 +79,23 @@ for target_idx,target in enumerate(pdd_targets):
         
         followup_prompt = create_followup_prompt(response, infilling_info)
         if followup_prompt:
-            # Attempt follow-up search
             followup_response = ask_gemini(GEMINI_CLIENT, followup_prompt, system_prompt, provided_files_list)
-            print(f"Follow-up search completed.")
             
-            # Try to merge findings back into original response
-            original_missing = missing_count
-            updated_response = merge_followup_response(response, followup_response)
-            new_missing = count_missing_fields(updated_response)
+            # Validate follow-up response too
+            followup_validation = validate_response_accuracy(followup_response, followup_prompt)
+            followup_validation_result = ask_gemini(GEMINI_CLIENT, followup_validation, "", provided_files_list)
             
-            if new_missing < original_missing:
-                print(f"Follow-up successful: reduced missing fields from {original_missing} to {new_missing}")
-                response = updated_response
+            if "VALIDATION PASSED" in followup_validation_result:
+                updated_response = merge_followup_response(response, followup_response)
+                new_missing = count_missing_fields(updated_response)
+                
+                if new_missing < missing_count:
+                    print(f"✅ Follow-up successful: reduced missing fields from {missing_count} to {new_missing}")
+                    response = updated_response
+                else:
+                    print(f"Follow-up did not improve results")
             else:
-                print(f"Follow-up did not find additional information")
-            
-            print(f"\nFollow-up details:\n{followup_response}")
+                print(f"❌ Follow-up response failed validation, keeping original")
     
     print(f"\n\n\nFinal Response:\n\n{response}")
     input() # so we don't run through the whole template for now to save api credits...

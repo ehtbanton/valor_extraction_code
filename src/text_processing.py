@@ -1,5 +1,6 @@
 
 
+
 def retrieve_contents_list(template_text: str) -> str:
     return template_text[template_text.find("Contents"):template_text.find("Appendix")].strip()
 
@@ -56,6 +57,21 @@ CRITICAL INSTRUCTIONS:
 6. Replace any pre-filled example table rows entirely with extracted data or "INFORMATION NOT FOUND".
 7. Your response must contain ONLY the filled template. Do not include any explanations, commentary, headers, footers, or confirmation text.
 
+ACCURACY AND VERIFICATION REQUIREMENTS:
+- NEVER infer, assume, calculate, or derive information not explicitly stated in the documents
+- NEVER use general knowledge about similar projects - only use information from the provided documents
+- NEVER round numbers, convert units, or modify technical specifications
+- NEVER combine information from different contexts to create new facts
+- NEVER use phrases like "approximately", "around", "about" unless those exact words appear in the source document
+- NEVER extrapolate dates, timelines, or schedules not explicitly mentioned
+- NEVER assume standard industry practices or typical project characteristics
+
+VERIFICATION CHECKLIST FOR EACH EXTRACTED PIECE OF INFORMATION:
+1. Can you find this exact information word-for-word in one of the documents?
+2. Is this information specifically about THIS project (not general industry information)?
+3. Are you copying the information exactly as written without modification?
+4. If the answer to ANY of these is NO, write "INFORMATION NOT FOUND" instead
+
 EXHAUSTIVE SEARCH REQUIREMENTS:
 - Before marking ANY field as "INFORMATION NOT FOUND", perform THREE separate search passes:
   PASS 1: Search for exact terminology from the template
@@ -73,12 +89,13 @@ EXPANDED SEARCH TERMS:
 - Capacity → power rating, output, generation capacity, installed capacity
 - Location → site, coordinates, address, geographic position, project area
 
-RELEVANCE CRITERIA:
-- Prioritize exact matches for technical specifications, dates, and measurements.
-- For descriptive fields, use information that directly addresses the placeholder topic.
-- If multiple sources provide the same information, use the most complete version.
-- If sources conflict, use the most technically detailed or most recent source.
-- Include units of measurement exactly as found in documents; do not convert units unless specified.
+FORBIDDEN ACTIONS:
+- Do NOT create plausible-sounding information that is not in the documents
+- Do NOT use standard project assumptions or industry defaults
+- Do NOT modify technical specifications or measurements
+- Do NOT interpret unclear information - if unclear, mark as "INFORMATION NOT FOUND"
+- Do NOT combine partial information from different sections to create complete answers unless they explicitly reference the same item
+- Do NOT use information from document examples, templates, or hypothetical scenarios within the documents
 
 TABLE FORMATTING RULES:
 - Keep the exact table structure: --- TABLE START --- and --- TABLE END ---.
@@ -89,12 +106,11 @@ TABLE FORMATTING RULES:
 - Maintain original column headers exactly as provided.
 - Do not add extra rows or columns.
 
-EDGE CASE HANDLING:
-- For partial information: include what you find; if incomplete, retain partial data exactly as found.
-- For conflicting information: use the most technically detailed or most recent source; if multiple dates or values are plausible, report the full range.
-- For ranges or estimates: include the full range (e.g., "60-80 MW" not just "60 MW").
-- For dates: use exact dates when available; retain partial dates (month/year) if precise day is not provided.
-- If a table has no data in any row, still output the table with all cells as "INFORMATION NOT FOUND".
+QUALITY CONTROL:
+- Each piece of extracted information must be traceable to a specific location in the provided documents
+- If you cannot point to where specific information came from, do not include it
+- Prefer being conservative and marking fields as "INFORMATION NOT FOUND" rather than guessing
+- Better to have accurate partial information than complete but incorrect information
 
 OUTPUT CONSTRAINTS:
 - Start directly with the template content and end when the template content ends.
@@ -178,4 +194,26 @@ def merge_followup_response(original_response, followup_response):
             updated_lines.append(line)
     
     return '\n'.join(updated_lines)
+
+def validate_response_accuracy(response, user_prompt):
+    """Create a validation prompt to check for hallucinated information"""
+    
+    validation_prompt = f"""You are a fact-checking assistant. Review the following filled template response and identify any information that appears to be:
+1. Made up or inferred rather than extracted from documents
+2. Modified from the original document text
+3. Combined from unrelated sources incorrectly
+4. Based on assumptions rather than explicit statements
+
+TEMPLATE RESPONSE TO VALIDATE:
+{response}
+
+For each suspicious piece of information, provide:
+- The specific text that seems questionable
+- Why it seems questionable (inferred vs stated, modified vs exact, etc.)
+
+If the response appears accurate and all information can be traced to the documents, respond with: "VALIDATION PASSED"
+
+If there are questionable elements, list them clearly."""
+
+    return validation_prompt
 
