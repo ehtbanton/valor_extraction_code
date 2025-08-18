@@ -49,8 +49,8 @@ def assemble_system_prompt():
     system_prompt = "Answer the user only using information from the provided documents."
     system_prompt += " Your response should only contain blocks of text that are word-for-word matches to the provided documents."
     system_prompt += " Do not make up any information or provide any additional commentary."
-    system_prompt += " If no relevant information can be found, write INFO_NOT_FOUND: <information>"
-    system_prompt += "\nFormat tables by using Markdown table syntax."
+    system_prompt += " If no relevant information can be found, write INFO_NOT_FOUND: <information> on a new line."
+    system_prompt += "\nFormat tables by using Markdown table syntax. They should fit the EXACT table format as given by the user."
     system_prompt += " Do not include any other text in your response apart from what you can directly find in the documents, or INFO_NOT_FOUND."
 
     """

@@ -35,7 +35,7 @@ def load_word_doc_to_string(folder_path):
     """
     Loads text from the first .docx file found in a directory into a single 
     string, preserving the order of paragraphs and tables. Tables are 
-    converted into a simple text format.
+    converted into standard Markdown format.
 
     Args:
         folder_path (str): The path to the directory containing the Word file.
@@ -73,19 +73,27 @@ def load_word_doc_to_string(folder_path):
                     full_text_blocks.append(block.text)
 
             elif isinstance(block, Table):
-                # If the block is a table, format it into a text representation
-                table_text = ["--- TABLE START ---"]
-                for row in block.rows:
-                    row_contents = []
-                    for cell in row.cells:
-                        # Clean up cell text by replacing newlines and stripping whitespace
-                        cell_text = cell.text.replace('\n', ' ').strip()
-                        row_contents.append(cell_text)
-                    # Join cells with a pipe separator
-                    table_text.append(" | ".join(row_contents))
-                table_text.append("--- TABLE END ---")
+                # If the block is a table, format it into Markdown
+                if not block.rows:
+                    continue # Skip empty tables
+
+                table_lines = []
                 
-                full_text_blocks.append("\n".join(table_text))
+                # Process Header Row
+                header_cells = [cell.text.replace('\n', ' ').strip() for cell in block.rows[0].cells]
+                table_lines.append("| " + " | ".join(header_cells) + " |")
+
+                # Create Separator Line
+                num_columns = len(header_cells)
+                separator = "| " + " | ".join(['---'] * num_columns) + " |"
+                table_lines.append(separator)
+
+                # Process Data Rows
+                for row in block.rows[1:]:
+                    row_cells = [cell.text.replace('\n', ' ').strip() for cell in row.cells]
+                    table_lines.append("| " + " | ".join(row_cells) + " |")
+                
+                full_text_blocks.append("\n".join(table_lines))
 
         # --- 5. Join all text blocks into a single string ---
         # Blocks are separated by two newlines for readability.

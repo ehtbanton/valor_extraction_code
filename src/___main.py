@@ -15,7 +15,7 @@
 import os
 
 from gemini_interface import setup_gemini, ask_gemini, upload_files_to_gemini
-from file_manager import name_files_in_folder
+from file_manager import name_files_in_folder, extract_text_from_folder
 from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
 from template_text_loader import load_word_doc_to_string#, fill_in_output_doc
 
@@ -33,11 +33,13 @@ pdd_targets = get_pdd_targets(contents_list) # should be an array of tuples cont
 #print("PDD Targets:" + str(pdd_targets))
 
 project_name = "prime_road"
-provided_files_list = name_files_in_folder(f"provided_documents/{project_name}")
-output_path = f"auto_pdd_output/AutoPDD_{project_name}.docx"
+#provided_files_list = name_files_in_folder(f"provided_documents/{project_name}")
+all_provided_text = extract_text_from_folder(f"provided_documents/{project_name}")
+
+
 
 GEMINI_CLIENT = setup_gemini()
-uploaded_files_cache = upload_files_to_gemini(provided_files_list)
+uploaded_files_cache = upload_files_to_gemini([f"provided_documents/{project_name}/provided_docs.txt"])
 
 for target_idx,target in enumerate(pdd_targets):
     # Find location of target in word file. Use the python-docx library.
@@ -64,6 +66,7 @@ for target_idx,target in enumerate(pdd_targets):
     input() # so we don't run through the whole template for now to save api credits...
 
     # Fill in this part of the output word doc. (May need to say the relevant info couldn't be found).
+    output_path = f"auto_pdd_output/AutoPDD_{project_name}.docx"
     #fill_in_output_doc(target, infilling_info, response)
 
 
