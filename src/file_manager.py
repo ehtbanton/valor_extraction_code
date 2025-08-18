@@ -1,7 +1,7 @@
 
 import os
 import PyPDF2
-import docx
+#import docx
 
 def extract_text_from_folder(folder_path):
     """

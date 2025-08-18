@@ -46,10 +46,14 @@ def assemble_user_prompt(infilling_info):
 
 def assemble_system_prompt():
     # System prompt contains a static description of how to produce output. An EXACT FORMAT.
-    system_prompt = "You are being provided with a template for your response by the user."
-    
+    system_prompt = "Answer the user only using information from the provided documents."
+    system_prompt += " Your response should only contain blocks of text that are word-for-word matches to the provided documents."
+    system_prompt += " Do not make up any information or provide any additional commentary."
+    system_prompt += " If no relevant information can be found, write INFO_NOT_FOUND: <information>"
+    system_prompt += "\nFormat tables by using Markdown table syntax."
+    system_prompt += " Do not include any other text in your response apart from what you can directly find in the documents, or INFO_NOT_FOUND."
 
-
+    """
     system_prompt += " It contains a list of short descriptions of information you will have to find in the attached documents." 
     system_prompt += " Please attempt to locate all relevant information from the attached documents."
     system_prompt += " Ensure your response follows the same format as the user prompt."  
@@ -61,6 +65,8 @@ def assemble_system_prompt():
     system_prompt += " If no relevant information can be found for any part of the template, please write that this is the case in caps at this point in your filled-in template."
     system_prompt += "Ensure your filled-in template format and structure is identical to the template provided by the user. Your response should only contain the filled-in template and no other text."
     
+    """
+
     """
     The other version:
     system_prompt = You are a technical document analyst specializing in renewable energy projects and environmental documentation. Your task is to extract specific, accurate information from project documents.

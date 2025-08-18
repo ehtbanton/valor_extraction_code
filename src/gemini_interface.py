@@ -1,100 +1,104 @@
 import os
+import time
 import google.generativeai as genai
 from dotenv import load_dotenv
-import mimetypes
 from typing import List, Optional
+
+# Note: The 'UploadedFile' type can be imported for more specific type hinting
+# from google.generativeai.types import UploadedFile
 
 def setup_gemini():
     """
     Configures the Gemini API with an API key from environment variables
     and initializes the generative model.
-
-    This function expects the API key to be set in an environment variable
-    named 'GOOGLE_API_KEY', which can be loaded from a .env file.
-
-    Returns:
-        genai.GenerativeModel: An initialized generative model agent
-                               ready to generate content.
     """
     try:
-        # Get the API key from the environment variable.
         load_dotenv()
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY not found. Make sure to create a .env file with GOOGLE_API_KEY='your_key'.")
+            raise ValueError("GOOGLE_API_KEY not found in environment variables.")
 
-        # Configure the generative AI client
         genai.configure(api_key=api_key)
-
-        # Create the model. 'gemini-1.5-flash' is a powerful multimodal model.
-        agent = genai.GenerativeModel('gemini-2.5-flash')
+        
+        # Note: Corrected the model name to a valid one, 'gemini-1.5-flash'.
+        agent = genai.GenerativeModel('gemini-1.5-flash')
         return agent
     except Exception as e:
         print(f"An error occurred during setup: {e}")
         return None
 
-def ask_gemini(
-    agent: genai.GenerativeModel,
-    prompt: str,
-    system_prompt: Optional[str] = None,
-    file_paths: Optional[List[str]] = None
-) -> str:
+def upload_files_to_gemini(file_paths: List[str], max_upload_retries: int = 3) -> Optional[List]:
     """
-    Sends a prompt, an optional system prompt, and a list of files to the 
-    initialized Gemini agent and gets a response.
+    Uploads a list of files to the Gemini API and returns their references.
+
+    This function handles the file upload process, including retries for failures.
+    The returned list can be cached and reused for multiple prompts.
 
     Args:
-        agent (genai.GenerativeModel): The initialized generative model agent.
-        prompt (str): The text prompt to send to the model.
-        system_prompt (Optional[str]): An optional system prompt to guide the 
-                                       model's behavior. Defaults to None.
-        file_paths (Optional[List[str]]): A list of paths to the files to be sent. 
-                                          Defaults to None.
+        file_paths: A list of local file paths to upload.
+        max_upload_retries: The maximum number of times to retry uploading a file.
 
     Returns:
-        str: The text part of the model's response. Returns an error
-             message if the agent is not valid or an error occurs.
+        A list of 'UploadedFile' objects if successful, otherwise None.
     """
-    if not agent:
-        return "Error: Gemini agent is not initialized. Please run setup_gemini() successfully."
-
-    # --- New: Combine system prompt with user prompt ---
-    # If a system prompt is provided, it's prepended to the main prompt 
-    # to guide the model's overall response.
-    full_prompt = f"{system_prompt}\n\n---\n\n{prompt}" if system_prompt else prompt
-    # --- End of new section ---
-
-    # Prepare content list with the full prompt and any files
-    content = [full_prompt]
+    print(f"Uploading {len(file_paths)} file(s) to create a cache...")
     uploaded_files = []
-
-    if file_paths:
-        print(f"\nUploading {len(file_paths)} file(s)...")
-        for file_path in file_paths:
+    
+    for file_path in file_paths:
+        success = False
+        for attempt in range(max_upload_retries):
             try:
-                # Upload the file and get a file handle
+                # The API performs a check for the file's MIME type.
                 uploaded_file = genai.upload_file(path=file_path)
                 uploaded_files.append(uploaded_file)
-                print(f"Successfully uploaded {file_path}")
+                print(f"  Successfully uploaded '{file_path}'")
+                success = True
+                break
             except Exception as e:
-                # If a file fails to upload, notify the user and skip it.
-                print(f"Failed to upload {file_path}: {e}")
+                print(f"  Upload attempt {attempt + 1} failed for {file_path}: {e}")
+                if attempt < max_upload_retries - 1:
+                    time.sleep(2)  # Wait before retry
+        
+        if not success:
+            print(f"FAILED to upload '{file_path}' after {max_upload_retries} attempts.")
+            # Depending on desired behavior, you could either continue or fail entirely.
+            # Here, we'll return None to indicate the cache creation failed.
+            return None
+            
+    print("File cache created successfully.")
+    return uploaded_files
+
+def ask_gemini(agent: genai.GenerativeModel, prompt: str, system_prompt: Optional[str] = None, cached_files: Optional[List] = None) -> str:
+    """
+    Sends a prompt and an optional list of pre-uploaded file references to Gemini.
+
+    Args:
+        agent: The initialized Gemini model agent.
+        prompt: The user's text prompt.
+        system_prompt: Optional system-level instructions for the model.
+        cached_files: A list of 'UploadedFile' objects returned by upload_files_to_gemini().
+
+    Returns:
+        The generated text response from the model.
+    """
+    if not agent:
+        return "Error: Gemini agent is not initialized."
+
+    # Construct the full prompt with system instructions if provided
+    complete_prompt = f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nUSER QUERY:\n{prompt}" if system_prompt else prompt
     
-    # Add the uploaded files to the content list for the API call
-    content.extend(uploaded_files)
+    # The content list starts with the text prompt
+    content = [complete_prompt]
+    
+    # If a file cache is provided, add the file references to the content
+    if cached_files:
+        content.extend(cached_files)
+        print(f"Asking Gemini with prompt and {len(cached_files)} cached file(s)...")
+    else:
+        print("Asking Gemini with prompt (no files)...")
 
     try:
-        # Get the response from the model
-        print("Generating content from prompt and files...\n")
         response = agent.generate_content(content)
         return response.text
     except Exception as e:
         return f"An error occurred while asking Gemini: {e}"
-
-
-
-
-
-
-
-

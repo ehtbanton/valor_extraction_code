@@ -14,7 +14,7 @@
 
 import os
 
-from gemini_interface import setup_gemini, ask_gemini
+from gemini_interface import setup_gemini, ask_gemini, upload_files_to_gemini
 from file_manager import name_files_in_folder
 from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
 from template_text_loader import load_word_doc_to_string#, fill_in_output_doc
@@ -37,7 +37,7 @@ provided_files_list = name_files_in_folder(f"provided_documents/{project_name}")
 output_path = f"auto_pdd_output/AutoPDD_{project_name}.docx"
 
 GEMINI_CLIENT = setup_gemini()
-
+uploaded_files_cache = upload_files_to_gemini(provided_files_list)
 
 for target_idx,target in enumerate(pdd_targets):
     # Find location of target in word file. Use the python-docx library.
@@ -54,7 +54,7 @@ for target_idx,target in enumerate(pdd_targets):
 
     response = "" # initializing
     for i in range(10): # Retry up to 10 times before giving up
-        response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, provided_files_list)
+        response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, uploaded_files_cache)
         # It should be a PRECISELY STRUCTURED RESPONSE. Make sure to allow it to also say it wasn't able to find the relevant info!
         # Check if the response is the correct format/structure. If it isn't, try again.
         if is_valid_response(response, infilling_info):
