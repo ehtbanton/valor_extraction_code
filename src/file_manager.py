@@ -126,8 +126,6 @@ def extract_text_from_folder(folder_path):
     combined_text = "\n\n".join(all_content_parts)
 
     try:
-        # Ensure the output directory exists
-        os.makedirs(output_dir, exist_ok=True)
         # Save the combined content to the single output file
         with open(output_filepath, 'w', encoding='utf-8') as output_file:
             output_file.write(combined_text)

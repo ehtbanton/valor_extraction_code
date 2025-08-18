@@ -21,7 +21,7 @@ def setup_gemini():
         genai.configure(api_key=api_key)
         
         # Note: Corrected the model name to a valid one, 'gemini-1.5-flash'.
-        agent = genai.GenerativeModel('gemini-1.5-flash')
+        agent = genai.GenerativeModel('gemini-2.5-flash')
         return agent
     except Exception as e:
         print(f"An error occurred during setup: {e}")
