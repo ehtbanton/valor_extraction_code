@@ -93,9 +93,9 @@ def ask_gemini(agent: genai.GenerativeModel, prompt: str, system_prompt: Optiona
     # If a file cache is provided, add the file references to the content
     if cached_files:
         content.extend(cached_files)
-        print(f"Asking Gemini with prompt and {len(cached_files)} cached file(s)...")
+        print(f"\nAsking Gemini with prompt and {len(cached_files)} cached file(s)...")
     else:
-        print("Asking Gemini with prompt (no files)...")
+        print("\nAsking Gemini with prompt (no files)...")
 
     try:
         response = agent.generate_content(content)

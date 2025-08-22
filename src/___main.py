@@ -61,7 +61,7 @@ for target_idx,target in enumerate(pdd_targets):
         # Check if the response is the correct format/structure. If it isn't, try again.
         if is_valid_response(response, infilling_info):
             break
-    print(f"\n\n\nResponse:\n\n{response}")
+    print(f"Response:\n\n{response}")
 
     input() # so we don't run through the whole template for now to save api credits...
 
