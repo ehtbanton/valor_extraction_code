@@ -6,6 +6,7 @@ from docx.oxml.text.paragraph import CT_P
 from docx.table import _Cell, Table
 from docx.text.paragraph import Paragraph
 
+
 def _iter_block_items(parent):
     """
     A helper function that yields each paragraph and table child within a parent 
