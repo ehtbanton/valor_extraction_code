@@ -16,14 +16,13 @@ project_name = "prime_road"
 output_path = create_output_doc_from_template(project_name)
 
 # Load the template's structure into a string for analysis and for generating prompts
-template_text = load_word_doc_to_string("output_template")
+template_text = load_word_doc_to_string("auto_pdd_output")
 contents_list = retrieve_contents_list(template_text)
 pdd_targets = get_pdd_targets(contents_list)
 
-# Prepare context documents for Gemini
-extract_text_from_folder(f"provided_documents/{project_name}")
+there_are_new_files = extract_text_from_folder(f"provided_documents/{project_name}")
 GEMINI_CLIENT = setup_gemini()
-uploaded_files_cache = upload_files_to_gemini([f"provided_documents/{project_name}/provided_docs.txt"])
+uploaded_files_cache = upload_files_to_gemini([f"provided_documents/{project_name}/all_context.txt"])
 
 # --- 2. MAIN PROCESSING LOOP ---
 for target_idx, target in enumerate(pdd_targets):
@@ -43,6 +42,16 @@ for target_idx, target in enumerate(pdd_targets):
     
     infilling_info = template_text[start_loc:end_loc] if end_loc != -1 else template_text[start_loc:]
 
+    if("SECTION_COMPLETE" in infilling_info):
+        print(f"\nSection '{start_marker}' is already complete. Skipping...")
+        continue
+    if("SECTION_ATTEMPTED" in infilling_info):
+        if(not there_are_new_files):
+            print(f"\nSection '{start_marker}' has previously been attempted and no new files are available. Skipping...")
+            continue
+        print(f"\nSection '{start_marker}' has previously been attempted, but there are new files! Retrying...")
+        #refill_section(infilling_info) # to be implemented!
+
     print(f"\n{'='*20}\nProcessing section: {start_marker}\n{'='*20}")
     
     # Assemble prompts for Gemini
@@ -59,12 +68,20 @@ for target_idx, target in enumerate(pdd_targets):
             break
         elif i < 2:
             print("  > Invalid response format, retrying...")
-            
+        else:
+            print("  > Failed to get a valid response after 3 attempts.")
+            exit()
+
     print("\n--- Gemini Response ---")
     print(response)
     print("-----------------------\n")
 
-    # KEY CHANGE: Write the response directly into the correct section of the Word document
+    if("INFO_NOT_FOUND" not in response):
+        response = "SECTION_COMPLETE\n\n"+response
+        print("SECTION_COMPLETE")
+    else:
+        response = "SECTION_ATTEMPTED\n\n"+response
+        print("SECTION_ATTEMPTED")
     replace_section_in_word_doc(output_path, start_marker, end_marker, response)
 
     # The input() pause is now just for debugging and does not affect file I/O

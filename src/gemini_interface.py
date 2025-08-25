@@ -61,9 +61,7 @@ def upload_files_to_gemini(file_paths: List[str], max_upload_retries: int = 3) -
         
         if not success:
             print(f"FAILED to upload '{file_path}' after {max_upload_retries} attempts.")
-            # Depending on desired behavior, you could either continue or fail entirely.
-            # Here, we'll return None to indicate the cache creation failed.
-            return None
+            exit()
             
     print("File cache created successfully.")
     return uploaded_files
@@ -76,8 +74,8 @@ def ask_gemini(agent: genai.GenerativeModel, prompt: str, system_prompt: Optiona
         agent: The initialized Gemini model agent.
         prompt: The user's text prompt.
         system_prompt: Optional system-level instructions for the model.
-        cached_files: A list of 'UploadedFile' objects returned by upload_files_to_gemini().
 
+        cached_files: A list of 'UploadedFile' objects returned by upload_files_to_gemini(). 23
     Returns:
         The generated text response from the model.
     """
