@@ -1,3 +1,22 @@
+# Welcome to AutoPDD!
+
+# Todo list:
+# - Fill in basic functionality (see detailed comments in this file).
+# - Check possibility of using somebody's MCP protocol for LLM processing inputs/outputs
+#       WE ARE HERE. Current status: 
+#           We are text-only. Yay! But there's A) a lot of unnecessary context being provided, and B) inconsistent infilling.
+#           The app now has the ability to process info only if needed, and call out if it requires more context.
+
+#           Functionality is basic rn - just redo a section if it wasn't previously completed. This ought to be fixed so we just re-check only
+#           any new files for only any INFO_NOT_FOUNDs. And then also more mechanical context use in general.
+#           
+#           So, may be worth investigating MCP. What we want is hard-coded ways for Gemini to get what it needs in a single prompt:
+#               - List of info requested
+#               - Consistently structured output
+#               - Locations of any info it has found (for checking during development - as hallucinations are bound to happen)
+#           
+#           I'm going to also start looking at algorithmic methods to improve attention with longer contexts.
+
 import os
 from gemini_interface import setup_gemini, ask_gemini, upload_files_to_gemini
 from context_manager import extract_text_from_folder
