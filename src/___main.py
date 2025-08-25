@@ -1,10 +1,8 @@
 import os
 from gemini_interface import setup_gemini, ask_gemini, upload_files_to_gemini
-from file_manager import extract_text_from_folder
+from context_manager import extract_text_from_folder
 from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
-from template_text_loader import load_word_doc_to_string
-# Import the new, capable word editor functions
-from word_editor import create_output_doc_from_template, replace_section_in_word_doc
+from word_editor import load_word_doc_to_string, create_output_doc_from_template, replace_section_in_word_doc
 
 os.system('cls' if os.name == 'nt' else 'clear')
 
