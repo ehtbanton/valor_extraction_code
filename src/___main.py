@@ -22,6 +22,7 @@ from gemini_interface import setup_gemini, ask_gemini, upload_files_to_gemini
 from context_manager import extract_text_from_folder
 from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
 from word_editor import load_word_doc_to_string, create_output_doc_from_template, replace_section_in_word_doc
+from _section_filler import refill_section
 
 os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -59,6 +60,8 @@ for target_idx, target in enumerate(pdd_targets):
     
     infilling_info = template_text[start_loc:end_loc] if end_loc != -1 else template_text[start_loc:]
 
+    response = None
+
     if("SECTION_COMPLETE" in infilling_info):
         print(f"\nSection '{start_marker}' is already complete. Skipping...")
         continue
@@ -67,31 +70,33 @@ for target_idx, target in enumerate(pdd_targets):
             print(f"\nSection '{start_marker}' has previously been attempted and no new files are available. Skipping...")
             continue
         print(f"\nSection '{start_marker}' has previously been attempted, but there are new files! Retrying...")
-        #refill_section(infilling_info) # to be implemented!
+        response = refill_section(GEMINI_CLIENT, infilling_info, uploaded_files_cache)
 
-    print(f"\n{'='*20}\nProcessing section: {start_marker}\n{'='*20}")
     
-    # Assemble prompts for Gemini
-    system_prompt = assemble_system_prompt()
-    user_prompt = assemble_user_prompt(infilling_info)
+    if(response is None):
+        print(f"\n{'='*20}\nProcessing section: {start_marker}\n{'='*20}")
 
-    # Ask Gemini for the content, with a few retries for validation
-    response = ""
-    for i in range(3):  # Retry up to 3 times
-        print(f"  > Gemini API Call (Attempt {i+1})...")
-        response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, uploaded_files_cache)
-        if is_valid_response(response, infilling_info):
-            print("  > Valid response received from Gemini.")
-            break
-        elif i < 2:
-            print("  > Invalid response format, retrying...")
-        else:
-            print("  > Failed to get a valid response after 3 attempts.")
-            exit()
+        # Assemble prompts for Gemini
+        system_prompt = assemble_system_prompt()
+        user_prompt = assemble_user_prompt(infilling_info)
+        # Ask Gemini for the content, with a few retries for validation
+        response = ""
+        for i in range(3):  # Retry up to 3 times
+            print(f"  > Gemini API Call (Attempt {i+1})...")
+            response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, uploaded_files_cache)
+            if is_valid_response(response, infilling_info):
+                print("  > Valid response received from Gemini.")
+                break
+            elif i < 2:
+                print("  > Invalid response format, retrying...")
+            else:
+                print("  > Failed to get a valid response after 3 attempts.")
+                exit()
 
-    print("\n--- Gemini Response ---")
+    print("\n--- Response ---")
     print(response)
     print("-----------------------\n")
+
 
     if("INFO_NOT_FOUND" not in response):
         response = "SECTION_COMPLETE\n\n"+response
@@ -101,7 +106,6 @@ for target_idx, target in enumerate(pdd_targets):
         print("SECTION_ATTEMPTED")
     replace_section_in_word_doc(output_path, start_marker, end_marker, response)
 
-    # The input() pause is now just for debugging and does not affect file I/O
     user_input = input("\nPress Enter to continue to the next section, or 'q' to quit: ")
     if user_input.lower() == 'q':
         break
