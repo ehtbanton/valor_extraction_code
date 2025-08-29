@@ -56,6 +56,7 @@ CRITICAL INSTRUCTIONS:
 5. Do NOT write "INFO_NOT_FOUND" for entire sections; search each cell and row individually.
 6. Replace any pre-filled example table rows entirely with extracted data or "INFO_NOT_FOUND: <information>".
 7. Your response must contain ONLY the filled template. Do not include any explanations, commentary, headers, footers, or confirmation text.
+8. For questions with checkbox options like `☐ Yes ☐ No`, you MUST respond by replacing the empty box with `[X]` for the correct answer and `[ ]` for the incorrect answer. Do NOT use unicode symbols like ☐ or ☒.
 
 ACCURACY AND VERIFICATION REQUIREMENTS:
 - NEVER infer, assume, calculate, or derive information not explicitly stated in the documents

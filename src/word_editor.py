@@ -1,273 +1,178 @@
 import docx
 import os
 import shutil
-from docx.document import Document
-from docx.oxml.table import CT_Tbl
+import pypandoc
+import tempfile
 from docx.oxml.text.paragraph import CT_P
-from docx.table import Table, _Cell
-from docx.text.paragraph import Paragraph
+from docx.oxml.table import CT_Tbl
 
-
-
+# --- HELPER FUNCTIONS (UNCHANGED and WORKING) ---
 def _iter_block_items(parent):
-    """
-    A helper function that yields each paragraph and table child within a parent 
-    element, in document order. This is crucial for preserving the document's 
-    structure.
-
-    Args:
-        parent: The parent object, which can be a Document or a table cell (_Cell).
-
-    Yields:
-        Paragraph or Table: The block-level items in the document.
-    """
-    if isinstance(parent, Document):
+    if isinstance(parent, docx.document.Document):
         parent_elm = parent.element.body
-    elif isinstance(parent, _Cell):
+    elif isinstance(parent, docx.table._Cell):
         parent_elm = parent._tc
     else:
         raise ValueError("Parent must be a Document or _Cell object")
-
+    
     for child in parent_elm.iterchildren():
         if isinstance(child, CT_P):
-            yield Paragraph(child, parent)
+            yield docx.text.paragraph.Paragraph(child, parent)
         elif isinstance(child, CT_Tbl):
-            yield Table(child, parent)
+            yield docx.table.Table(child, parent)
 
 def load_word_doc_to_string(folder_path):
-    """
-    Loads text from the first .docx file found in a directory into a single 
-    string, preserving the order of paragraphs and tables. Tables are 
-    converted into standard Markdown format.
-
-    Args:
-        folder_path (str): The path to the directory containing the Word file.
-
-    Returns:
-        str: A single string containing the entire text content of the document,
-             or an error message if no file is found or cannot be processed.
-    """
-    # --- 1. Find the first .docx file in the specified folder ---
     filename = None
     try:
-        for f in os.listdir(folder_path):
-            if f.lower().endswith('.docx'):
-                filename = f
-                break  # Stop after finding the first .docx file
+        if os.path.isdir(folder_path):
+            for f in os.listdir(folder_path):
+                if f.lower().endswith('.docx') and not f.startswith('~$'):
+                    filename = os.path.join(folder_path, f)
+                    break
+        elif os.path.isfile(folder_path) and folder_path.lower().endswith('.docx'):
+            filename = folder_path
     except FileNotFoundError:
         return f"Error: Directory not found at '{folder_path}'"
-
     if not filename:
         return f"Error: No .docx file found in the directory '{folder_path}'"
-
-    # --- 2. Construct the full file path ---
-    file_path = os.path.join(folder_path, filename)
-
     try:
-        # --- 3. Open the Word document ---
-        document = docx.Document(file_path)
+        document = docx.Document(filename)
         full_text_blocks = []
-
-        # --- 4. Iterate through all blocks (paragraphs and tables) in order ---
         for block in _iter_block_items(document):
-            if isinstance(block, Paragraph):
-                # If the block is a paragraph, add its text
-                if block.text.strip(): # Avoid adding empty paragraphs
+            if isinstance(block, docx.text.paragraph.Paragraph):
+                if block.text.strip():
                     full_text_blocks.append(block.text)
-
-            elif isinstance(block, Table):
-                # If the block is a table, format it into Markdown
-                if not block.rows:
-                    continue # Skip empty tables
-
-                table_lines = []
-                
-                # Process Header Row
-                header_cells = [cell.text.replace('\n', ' ').strip() for cell in block.rows[0].cells]
-                table_lines.append("| " + " | ".join(header_cells) + " |")
-
-                # Create Separator Line
-                num_columns = len(header_cells)
-                separator = "| " + " | ".join(['---'] * num_columns) + " |"
-                table_lines.append(separator)
-
-                # Process Data Rows
+            elif isinstance(block, docx.table.Table):
+                if not block.rows: continue
+                table_lines = ["| " + " | ".join(cell.text.replace('\n', ' ').strip() for cell in block.rows[0].cells) + " |"]
+                table_lines.append("| " + " | ".join(['---'] * len(block.rows[0].cells)) + " |")
                 for row in block.rows[1:]:
-                    row_cells = [cell.text.replace('\n', ' ').strip() for cell in row.cells]
-                    table_lines.append("| " + " | ".join(row_cells) + " |")
-                
+                    table_lines.append("| " + " | ".join(cell.text.replace('\n', ' ').strip() for cell in row.cells) + " |")
                 full_text_blocks.append("\n".join(table_lines))
-
-        # --- 5. Join all text blocks into a single string ---
-        # Blocks are separated by two newlines for readability.
         return "\n\n".join(full_text_blocks)
-
     except Exception as e:
-        return f"Error processing file '{filename}': {e}"
-
-
-
-
-
-
+        return f"Error processing file '{os.path.basename(filename)}': {e}"
 
 def create_output_doc_from_template(project_name):
-    """
-    Creates a new Word document for output by copying the template.
-    If the output file already exists, it does nothing, ensuring a single file is used.
-    
-    Args:
-        project_name (str): The name of the project to be used in the output filename.
-
-    Returns:
-        str: The path to the output document.
-    """
-    template_folder = "output_template"
-    output_folder = "auto_pdd_output"
-    template_path = ""
-    output_path = os.path.join(output_folder, f"AutoPDD_{project_name}.docx")
-
-    # Find the template file in the specified folder
-    for f in os.listdir(template_folder):
-        if f.lower().endswith('.docx') and not f.startswith('~$'):
-            template_path = os.path.join(template_folder, f)
-            break
-    
+    template_folder, output_folder = "output_template", "auto_pdd_output"
+    template_path = next((os.path.join(template_folder, f) for f in os.listdir(template_folder) if f.lower().endswith('.docx') and not f.startswith('~$')), None)
     if not template_path:
         raise FileNotFoundError(f"Error: No .docx template found in '{template_folder}'")
-
-    # Create the output directory if it doesn't exist
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-
-    # Copy the template to the output destination only if the output file doesn't already exist
+    output_path = os.path.join(output_folder, f"AutoPDD_{project_name}.docx")
     if not os.path.exists(output_path):
         shutil.copy(template_path, output_path)
         print(f"Created output document at: {output_path}")
     else:
         print(f"Output document already exists at: {output_path}. This file will be updated.")
-        
     return output_path
 
-def _iter_block_items(parent):
-    """Helper function to yield each paragraph and table within a parent element."""
-    if isinstance(parent, Document):
-        parent_elm = parent.element.body
-    elif isinstance(parent, _Cell):
-        parent_elm = parent._tc
-    else:
-        raise ValueError("Parent must be a Document or _Cell object")
-
-    for child in parent_elm.iterchildren():
-        if isinstance(child, CT_P):
-            yield Paragraph(child, parent)
-        elif isinstance(child, CT_Tbl):
-            yield Table(child, parent)
-
 def _delete_element(element):
-    """Removes a paragraph or table element from the document."""
     el = element._element
     el.getparent().remove(el)
 
-def parse_markdown_table(markdown_text):
-    """Parses a Markdown table string into a header and a list of row data."""
-    lines = [line.strip() for line in markdown_text.strip().split('\n')]
-    if len(lines) < 2:  # Header and separator line are minimum
-        return None, None
-    
-    # Clean lines by removing leading/trailing pipes
-    cleaned_lines = [line[1:-1] if line.startswith('|') and line.endswith('|') else line for line in lines]
-    
-    # Split each row into cells
-    table_data = [[cell.strip() for cell in row.split('|')] for row in cleaned_lines]
-    
-    header = table_data[0]
-    rows = table_data[2:]  # Skip the separator line
-    return header, rows
+# --- NEW HELPER FUNCTION FOR HIGH-LEVEL CONTENT COPYING ---
+def _insert_content_from_document(source_doc, target_doc, anchor_element):
+    """
+    Reads elements from the source_doc and intelligently recreates them in the
+    target_doc after the anchor_element, preserving formatting.
+    """
+    cursor = anchor_element # This is the last known element in the target document
 
+    # Iterate through each block (paragraph or table) in the source document
+    for block in _iter_block_items(source_doc):
+        if isinstance(block, docx.text.paragraph.Paragraph):
+            # It's a paragraph - recreate it
+            new_p = target_doc.add_paragraph(text=block.text, style=block.style)
+            cursor.addnext(new_p._element)
+            cursor = new_p._element # Move the cursor
+        
+        elif isinstance(block, docx.table.Table):
+            # It's a table - recreate it cell by cell
+            num_rows = len(block.rows)
+            num_cols = len(block.columns)
+            new_table = target_doc.add_table(rows=num_rows, cols=num_cols)
+            new_table.style = block.style
+            
+            # This is the crucial part: copy text from each cell
+            for r in range(num_rows):
+                for c in range(num_cols):
+                    source_cell = block.cell(r, c)
+                    target_cell = new_table.cell(r, c)
+                    target_cell.text = source_cell.text
+            
+            cursor.addnext(new_table._element)
+            cursor = new_table._element # Move the cursor
+
+
+# --- FINAL MAIN FUNCTION ---
 def replace_section_in_word_doc(doc_path, start_marker, end_marker, new_content_str):
     """
-    Replaces the content between two heading markers in a Word document.
-    
-    Args:
-        doc_path (str): Path to the .docx file to be modified.
-        start_marker (str): The text of the heading where the section to be replaced begins.
-        end_marker (str): The text of the heading where the section ends.
-        new_content_str (str): The new content (from Gemini) to be inserted.
+    Uses Pandoc to create a temporary, perfectly-formatted doc, then performs a
+    high-level copy of its contents into the main document.
     """
-    doc = docx.Document(doc_path)
-    
-    in_section_to_replace = False
-    elements_to_delete = []
-    insert_after_element = None
+    temp_file_handle, temp_docx_path = tempfile.mkstemp(suffix=".docx")
+    os.close(temp_file_handle)
 
-    # First, find the elements that need to be deleted
-    all_elements = list(_iter_block_items(doc))
-    for element in all_elements:
-        if isinstance(element, Paragraph):
-            # If we find the end marker, stop collecting elements for deletion
-            if element.text.strip() == end_marker.strip():
-                in_section_to_replace = False
-            
-            # If we are in the target section, add the element to the deletion list
-            if in_section_to_replace:
-                elements_to_delete.append(element)
+    try:
+        # STEP 1: Parse the incoming AI response
+        lines = new_content_str.strip().split('\n')
+        status_line = lines[0] if lines else "SECTION_ATTEMPTED"
+        markdown_content = "\n".join(lines[2:])
 
-            # If we find the start marker, start collecting elements from the next one
-            if element.text.strip() == start_marker.strip():
-                in_section_to_replace = True
-                insert_after_element = element
-        elif in_section_to_replace: # If it's a table within the section
-            elements_to_delete.append(element)
-    
-    if insert_after_element is None:
-        print(f"Warning: Start marker '{start_marker}' not found. Cannot update section.")
-        return
+        # STEP 2: Use Pandoc to create a physical temporary DOCX file
+        pypandoc.convert_text(markdown_content, 'docx', format='md', outputfile=temp_docx_path)
+        
+        # STEP 3: Open both the main doc and the perfect temporary doc
+        temp_doc = docx.Document(temp_docx_path)
+        main_doc = docx.Document(doc_path)
+        
+        blocks = list(_iter_block_items(main_doc))
 
-    # Delete the old placeholder elements
-    for element in elements_to_delete:
-        _delete_element(element)
+        start_index, end_index = -1, -1
+        for i, block in enumerate(blocks):
+            if isinstance(block, docx.text.paragraph.Paragraph) and block.text.strip() == start_marker:
+                start_index = i
+            elif start_index != -1 and isinstance(block, docx.text.paragraph.Paragraph) and block.text.strip() == end_marker:
+                end_index = i
+                break
+        
+        if start_index == -1:
+            print(f"Warning: Start marker '{start_marker}' not found. Cannot update.")
+            return
 
-    # Now, insert the new content from the Gemini response
-    current_element_xml = insert_after_element._element 
-    
-    # Split the new content into blocks (paragraphs or tables)
-    content_blocks = new_content_str.strip().split('\n\n')
+        if end_index == -1:
+            end_index = len(blocks)
+        
+        # STEP 4: Delete all old content to create a clean slate
+        if end_index > start_index + 1:
+            for i in range(end_index - 1, start_index, -1):
+                _delete_element(blocks[i])
 
-    for block in content_blocks:
-        block = block.strip()
-        if not block:
-            continue
+        # STEP 5: Perform the new, robust, high-level copy
+        anchor = blocks[start_index]._element
+        
+        status_p = main_doc.add_paragraph(status_line)
+        anchor.addnext(status_p._element)
+        anchor_for_copy = status_p._element
 
-        # Check if the block is a Markdown table
-        if block.startswith('|') and '|' in block:
-            header, rows = parse_markdown_table(block)
-            if header and rows:
-                num_cols = len(header)
-                table = doc.add_table(rows=1, cols=num_cols)
-                table.style = 'Table Grid'
-                for i, col_name in enumerate(header):
-                    table.cell(0, i).text = col_name
-                for row_data in rows:
-                    row_cells = table.add_row().cells
-                    for i, cell_text in enumerate(row_data):
-                        if i < num_cols:
-                            row_cells[i].text = cell_text
-                current_element_xml.addnext(table._element)
-                current_element_xml = table._element
-            else: # If parsing fails, treat it as a plain paragraph
-                p = docx.oxml.shared.OxmlElement('w:p')
-                docx.text.paragraph.Paragraph(p, doc).text = block
-                current_element_xml.addnext(p)
-                current_element_xml = p
-        else: # It's a regular paragraph
-            p = docx.oxml.shared.OxmlElement('w:p')
-            docx.text.paragraph.Paragraph(p, doc).text = block
-            current_element_xml.addnext(p)
-            current_element_xml = p
-            
-    doc.save(doc_path)
-    print(f"Successfully updated section: '{start_marker}'")
+        _insert_content_from_document(temp_doc, main_doc, anchor_for_copy)
 
+        main_doc.save(doc_path)
+        print(f"Successfully updated section '{start_marker}' in {os.path.basename(doc_path)}.")
 
-    
+    except ImportError:
+        # Error handling remains the same
+        print("\nFATAL ERROR: pypandoc is not installed...")
+        exit()
+    except OSError as e:
+        print(f"\nFATAL ERROR: Pandoc application not found or failed. Error: {e}")
+        exit()
+    except Exception as e:
+        print(f"FATAL ERROR during document generation for '{start_marker}': {e}")
+
+    finally:
+        # STEP 6: Always clean up the temporary file
+        if os.path.exists(temp_docx_path):
+            os.remove(temp_docx_path)
