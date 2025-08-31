@@ -117,7 +117,7 @@ def create_output_doc_from_template(project_name):
     Returns:
         str: The path to the output document.
     """
-    template_folder = "output_template"
+    template_folder = "pdd_template"
     output_folder = "auto_pdd_output"
     template_path = ""
     output_path = os.path.join(output_folder, f"AutoPDD_{project_name}.docx")

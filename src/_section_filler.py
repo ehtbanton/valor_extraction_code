@@ -21,6 +21,7 @@ def fill_section(GEMINI_CLIENT, infilling_info, uploaded_files_cache):
         else:
             print("  > Failed to get a valid response after 3 attempts.")
             exit()
+    return response
 
 
 def refill_section(GEMINI_CLIENT, infilling_info, uploaded_files_cache):
