@@ -22,19 +22,19 @@ from gemini_interface import setup_gemini, ask_gemini, upload_files_to_gemini
 from context_manager import extract_text_from_folder
 from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
 from word_editor import load_word_doc_to_string, create_output_doc_from_template, replace_section_in_word_doc
-from _section_filler import refill_section
+from _section_filler import fill_section, refill_section
 
 os.system('cls' if os.name == 'nt' else 'clear')
 
 # --- 1. SETUP ---
 project_name = "prime_road"
 
-# Create the single output document from the template at the very beginning.
-# This solves the problem of creating a new file on each run.
+# Create the single output document from the template if it doesn't exist yet
 output_path = create_output_doc_from_template(project_name)
+output_text = load_word_doc_to_string("auto_pdd_output")
 
 # Load the template's structure into a string for analysis and for generating prompts
-template_text = load_word_doc_to_string("auto_pdd_output")
+template_text = load_word_doc_to_string("pdd_template")
 contents_list = retrieve_contents_list(template_text)
 pdd_targets = get_pdd_targets(contents_list)
 
@@ -55,43 +55,25 @@ for target_idx, target in enumerate(pdd_targets):
         end_marker = "Appendix" 
 
     # Get the original placeholder text from the template to create the user prompt
-    start_loc = find_target_location(target, template_text)
-    end_loc = find_target_location(pdd_targets[target_idx + 1], template_text) if target_idx + 1 < len(pdd_targets) else -1
+    template_start_loc = find_target_location(target, template_text)
+    template_end_loc = find_target_location(pdd_targets[target_idx + 1], template_text) if target_idx + 1 < len(pdd_targets) else -1
     
-    infilling_info = template_text[start_loc:end_loc] if end_loc != -1 else template_text[start_loc:]
+    infilling_info = template_text[template_start_loc:template_end_loc] if template_end_loc != -1 else template_text[template_start_loc:]
 
     response = None
-
-    if("SECTION_COMPLETE" in infilling_info):
+    if("SECTION_COMPLETE" in output_text[template_start_loc:template_end_loc]): #.split("\n")[1]):
         print(f"\nSection '{start_marker}' is already complete. Skipping...")
         continue
-    if("SECTION_ATTEMPTED" in infilling_info):
+    if("SECTION_ATTEMPTED" in output_text[template_start_loc:template_end_loc]): #.split("\n")[1]):
         if(not there_are_new_files):
             print(f"\nSection '{start_marker}' has previously been attempted and no new files are available. Skipping...")
             continue
         print(f"\nSection '{start_marker}' has previously been attempted, but there are new files! Retrying...")
         response = refill_section(GEMINI_CLIENT, infilling_info, uploaded_files_cache)
-
-    
-    if(response is None):
+    else:
         print(f"\n{'='*20}\nProcessing section: {start_marker}\n{'='*20}")
+        response = fill_section(GEMINI_CLIENT, infilling_info, uploaded_files_cache)
 
-        # Assemble prompts for Gemini
-        system_prompt = assemble_system_prompt()
-        user_prompt = assemble_user_prompt(infilling_info)
-        # Ask Gemini for the content, with a few retries for validation
-        response = ""
-        for i in range(3):  # Retry up to 3 times
-            print(f"  > Gemini API Call (Attempt {i+1})...")
-            response = ask_gemini(GEMINI_CLIENT, user_prompt, system_prompt, uploaded_files_cache)
-            if is_valid_response(response, infilling_info):
-                print("  > Valid response received from Gemini.")
-                break
-            elif i < 2:
-                print("  > Invalid response format, retrying...")
-            else:
-                print("  > Failed to get a valid response after 3 attempts.")
-                exit()
 
     print("\n--- Response ---")
     print(response)
@@ -110,4 +92,5 @@ for target_idx, target in enumerate(pdd_targets):
     if user_input.lower() == 'q':
         break
 
-print(f"\nProcessing complete. The final document has been saved at: {output_path}")
+print(f"\nProcessing complete. The final document has been saved at: {output_path}\n")
+exit()

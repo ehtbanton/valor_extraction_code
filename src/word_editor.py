@@ -106,11 +106,6 @@ def load_word_doc_to_string(folder_path):
         return f"Error processing file '{filename}': {e}"
 
 
-
-
-
-
-
 def create_output_doc_from_template(project_name):
     """
     Creates a new Word document for output by copying the template.
@@ -268,6 +263,22 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, new_content_
             
     doc.save(doc_path)
     print(f"Successfully updated section: '{start_marker}'")
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     
