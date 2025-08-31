@@ -1,2 +1,4 @@
 .src/pycache/
 .pycache/
+.auto_pdd_output/
+.provided_documents/
