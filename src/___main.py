@@ -20,7 +20,7 @@
 import os
 from gemini_interface import setup_gemini, ask_gemini, upload_files_to_gemini
 from context_manager import extract_text_from_folder
-from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, assemble_system_prompt, assemble_user_prompt, is_valid_response
+from text_processing import retrieve_contents_list, get_pdd_targets, find_target_location, cleanup_response, assemble_system_prompt, assemble_user_prompt, is_valid_response
 from word_editor import load_word_doc_to_string, create_output_doc_from_template, replace_section_in_word_doc
 from _section_filler import fill_section, refill_section
 
@@ -57,25 +57,34 @@ for target_idx, target in enumerate(pdd_targets):
     # Get the original placeholder text from the template to create the user prompt
     template_start_loc = find_target_location(target, template_text)
     template_end_loc = find_target_location(pdd_targets[target_idx + 1], template_text) if target_idx + 1 < len(pdd_targets) else -1
-    
     infilling_info = template_text[template_start_loc:template_end_loc] if template_end_loc != -1 else template_text[template_start_loc:]
 
+    output_start_loc = find_target_location(target, output_text)
+    output_end_loc = find_target_location(pdd_targets[target_idx + 1], output_text) if target_idx + 1 < len(pdd_targets) else -1
+    #print(f"Section:\n {output_text[output_start_loc:output_end_loc]}")
+    
     response = None
-    if("SECTION_COMPLETE" in output_text[template_start_loc:template_end_loc]): #.split("\n")[1]):
+    section_status = output_text[output_start_loc:output_end_loc].split("\n")[2]
+    if("SECTION_COMPLETE" in section_status):
         print(f"\nSection '{start_marker}' is already complete. Skipping...")
         continue
-    if("SECTION_ATTEMPTED" in output_text[template_start_loc:template_end_loc]): #.split("\n")[1]):
+    if("SECTION_ATTEMPTED" in section_status):
         if(not there_are_new_files):
             print(f"\nSection '{start_marker}' has previously been attempted and no new files are available. Skipping...")
             continue
         print(f"\nSection '{start_marker}' has previously been attempted, but there are new files! Retrying...")
         response = refill_section(GEMINI_CLIENT, infilling_info, uploaded_files_cache)
-    else:
+    if not response:
         print(f"\n{'='*20}\nProcessing section: {start_marker}\n{'='*20}")
         response = fill_section(GEMINI_CLIENT, infilling_info, uploaded_files_cache)
 
-
     print("\n--- Response ---")
+    print(response)
+    print("-----------------------\n")
+
+    response = cleanup_response(response)
+
+    print("\n--- Revised response ---")
     print(response)
     print("-----------------------\n")
 
@@ -93,4 +102,6 @@ for target_idx, target in enumerate(pdd_targets):
         break
 
 print(f"\nProcessing complete. The final document has been saved at: {output_path}\n")
-exit()
+
+
+

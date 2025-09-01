@@ -36,7 +36,28 @@ def find_target_location(target,template_text):
     return start_location
 
 
+def cleanup_response(response):
+    revised_response = None
+    # Cleaning tables...
+    lines_containing_table = [0]*len(response.split("\n"))
+    lines_which_are_empty = [1]*len(response.split("\n"))
+    for line in response.split("\n"):
+        if "|" in line:
+            lines_containing_table[response.split("\n").index(line)] = 1
+        else:
+            if line.strip():
+                lines_which_are_empty[response.split("\n").index(line)] = 0
 
+    # If the line before or after a table is not empty, delete it
+    for i in range(1, len(response.split("\n")) - 1):
+        if (not lines_which_are_empty[i]) and ((lines_containing_table[i + 1]) or (lines_containing_table[i - 1])):
+            revised_response = response.replace(response.split("\n")[i], "")
+
+
+    revised_response = response.replace(f"`", "")
+    return revised_response
+
+    return response
 
 
 def assemble_user_prompt(infilling_info):
