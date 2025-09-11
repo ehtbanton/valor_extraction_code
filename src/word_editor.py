@@ -143,7 +143,12 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                 len(text.strip()) < 100):  # Short checkbox-like text
                 
                 # Get the checkbox value from AI - try multiple patterns
-                checkbox_value = get_value_for_key_pattern(ai_json_data, ["checkbox", "project design", "design"])
+                checkbox_patterns = [
+                    "checkbox", "project design", "design", "project type", 
+                    "location type", "installation type", "project category",
+                    "single", "multiple", "grouped", "group"
+                ]
+                checkbox_value = get_value_for_key_pattern(ai_json_data, checkbox_patterns)
                 
                 print(f"    > Found potential checkbox text: '{text.strip()}'")
                 print(f"    > Checkbox value from AI: '{checkbox_value}'")
@@ -153,22 +158,34 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                     checkbox_lower = checkbox_value.lower()
                     text_lower = text.lower()
                     
+                    # Remove any existing checkbox marks first
+                    clean_text = text.strip()
+                    if clean_text.startswith('['):
+                        clean_text = clean_text.split(']', 1)[1].strip() if ']' in clean_text else clean_text
+                    
                     # Check for single location/installation
-                    if ("single" in checkbox_lower) and "single" in text_lower:
-                        paragraph.text = f"[X] {text.strip()}"
+                    if ("single" in checkbox_lower or "one location" in checkbox_lower) and "single" in text_lower:
+                        paragraph.text = f"[X] {clean_text}"
                         print(f"    > [X] Selected: Single location - {checkbox_value}")
                     # Check for multiple locations (not grouped)  
                     elif ("multiple" in checkbox_lower and "group" not in checkbox_lower) and ("multiple" in text_lower and "group" not in text_lower):
-                        paragraph.text = f"[X] {text.strip()}"
+                        paragraph.text = f"[X] {clean_text}"
                         print(f"    > [X] Selected: Multiple locations - {checkbox_value}")
                     # Check for grouped project
                     elif ("group" in checkbox_lower or "grouped" in checkbox_lower) and "group" in text_lower:
-                        paragraph.text = f"[X] {text.strip()}"
+                        paragraph.text = f"[X] {clean_text}"
                         print(f"    > [X] Selected: Grouped project - {checkbox_value}")
                     else:
-                        print(f"    > [X] No checkbox match found for: '{checkbox_value}' in text: '{text.strip()[:50]}...'")
+                        # Leave unchecked but clean format
+                        paragraph.text = f"[ ] {clean_text}"
+                        print(f"    > [ ] No checkbox match found for: '{checkbox_value}' in text: '{text.strip()[:50]}...'")
                 else:
-                    print(f"    > [X] No checkbox value found in AI response")
+                    # Leave unchecked but ensure clean format
+                    clean_text = text.strip()
+                    if clean_text.startswith('['):
+                        clean_text = clean_text.split(']', 1)[1].strip() if ']' in clean_text else clean_text
+                    paragraph.text = f"[ ] {clean_text}"
+                    print(f"    > [ ] No checkbox value found in AI response")
                     # Debug: show all available keys
                     print(f"    > Available AI keys: {list(ai_json_data.keys())[:5]}")
             
@@ -220,6 +237,18 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                             print(f"    > Filled: Generic bullet - {key}")
                             break
             
+            # HANDLE TEMPLATE INSTRUCTION LINES THAT SHOULD BE REMOVED
+            elif any(instruction in text.lower() for instruction in [
+                "a summary description of the technologies/measures",
+                "the location of the project",
+                "an explanation of how the project is expected to generate", 
+                "a brief description of the scenario existing prior",
+                "an estimate of annual average and total reductions"
+            ]):
+                # These are leftover template instructions - remove them
+                paragraph.text = ""
+                print(f"    > Removed: Template instruction line - '{text.strip()[:50]}...'")
+            
             # HANDLE PARAGRAPH CONTENT REPLACEMENT - be more careful to avoid duplication
             elif (any(keyword in text.lower() for keyword in ["describe", "justify", "explain", "provide", "details", "information"]) and
                   not text.strip().startswith('•') and len(text.strip()) > 20):  # Avoid short lines and bullets
@@ -250,8 +279,9 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                         print(f"    > Filled: General eligibility paragraph")
                         replaced = True
                 
+                
                 # Other instruction paragraphs - try to match with any available paragraph data
-                if not replaced:
+                elif not replaced:
                     # Look for any paragraph data that might match this instruction
                     for key, data in ai_json_data.items():
                         if ("paragraph:" in key.lower() and 
@@ -327,7 +357,9 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                         not cell.text.strip() or 
                         '...' in cell.text or 
                         '…' in cell.text or
-                        cell.text.strip() in ['', ' ', 'One year']
+                        cell.text.strip() in ['', ' ', 'One year', 'TBD', 'To be determined', 'N/A', 'NA', '[Fill in]', 'Fill in', '<fill in>'] or
+                        cell.text.strip().startswith('[') and cell.text.strip().endswith(']') or
+                        cell.text.strip().startswith('<') and cell.text.strip().endswith('>')
                     )
                     
                     if not needs_filling:
@@ -384,9 +416,17 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                     if not filled:
                         search_terms = []
                         if row_label:
-                            search_terms.append(row_label)
+                            search_terms.extend([row_label, row_label.lower(), f"table: {row_label.lower()}"])
                         if col_header:
-                            search_terms.append(col_header)
+                            search_terms.extend([col_header, col_header.lower(), f"table: {col_header.lower()}"])
+                        
+                        # Also try combinations
+                        if row_label and col_header:
+                            search_terms.extend([
+                                f"{row_label} {col_header}",
+                                f"{col_header} {row_label}",
+                                f"table: {row_label.lower()} {col_header.lower()}"
+                            ])
                         
                         if search_terms:
                             value = get_value_for_key_pattern(ai_json_data, search_terms)
@@ -395,10 +435,22 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                                 print(f"      > Filled: {row_label} - {col_header} = {value}")
                                 filled = True
                     
-                    # Ensure no cell is left empty
+                    # Ensure no cell is left empty - provide specific info about what's missing
                     if not filled:
-                        cell.text = "INFO_NOT_FOUND"
-                        print(f"      > Defaulted: {row_label} - {col_header} = INFO_NOT_FOUND")
+                        # Create a more descriptive INFO_NOT_FOUND message
+                        missing_info = []
+                        if row_label:
+                            missing_info.append(row_label.lower())
+                        if col_header and col_header.lower() != row_label.lower():
+                            missing_info.append(col_header.lower())
+                        
+                        if missing_info:
+                            specific_info = ", ".join(missing_info)
+                            cell.text = f"INFO_NOT_FOUND: {specific_info}"
+                            print(f"      > Defaulted: {row_label} - {col_header} = INFO_NOT_FOUND: {specific_info}")
+                        else:
+                            cell.text = "INFO_NOT_FOUND"
+                            print(f"      > Defaulted: {row_label} - {col_header} = INFO_NOT_FOUND")
         
         doc.save(doc_path)
         print(f"  > Saved section '{start_marker}'")
