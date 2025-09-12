@@ -54,6 +54,18 @@ def add_comment(paragraph, text, author="Source Reference"):
     except Exception:
         pass
 
+def get_heading_level(paragraph):
+    """Get the heading level (1-9) of a paragraph, or 0 if not a heading."""
+    if paragraph.style and paragraph.style.name:
+        style_name = paragraph.style.name.lower()
+        if 'heading' in style_name:
+            import re
+            match = re.search(r'heading\s*(\d+)', style_name)
+            if match:
+                level = int(match.group(1))
+                return level if 1 <= level <= 9 else 0
+    return 0
+
 # --- THE DEFINITIVE, WORKING SOLUTION ---
 
 def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data, status):
@@ -62,13 +74,35 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
         all_blocks = list(_iter_block_items(doc))
 
         start_index, end_index = -1, len(all_blocks)
+        start_heading_level = 0
+        
         for i, block in enumerate(all_blocks):
             if isinstance(block, docx.text.paragraph.Paragraph):
-                if block.text.strip() == start_marker:
+                text = block.text.strip()
+                current_heading_level = get_heading_level(block)
+                
+                # Find start marker - avoid TOC entries (they have numbers and tabs)
+                if (text == start_marker or 
+                    (len(start_marker.split()) > 1 and start_marker in text and
+                     not ('\t' in text and any(char.isdigit() for char in text.split('\t')[-1])))):
                     start_index = i
-                elif start_index != -1 and block.text.strip() == end_marker:
-                    end_index = i
-                    break
+                    start_heading_level = current_heading_level
+                    print(f"  > Found start section '{text}' at heading level {start_heading_level}")
+                    
+                # Find end marker - heading level aware
+                elif start_index != -1:
+                    # Exact or fuzzy end marker match
+                    if (text == end_marker or 
+                        (len(end_marker.split()) > 1 and end_marker in text)):
+                        end_index = i
+                        print(f"  > Found end marker '{text}'")
+                        break
+                    # Or if we hit a heading at same or higher level (and we started at a heading)
+                    elif (start_heading_level > 0 and current_heading_level > 0 and 
+                          current_heading_level <= start_heading_level):
+                        end_index = i
+                        print(f"  > Found end boundary: higher level heading (level {current_heading_level})")
+                        break
         
         if start_index == -1:
             print(f"  > WARNING: Start marker '{start_marker}' not found.")
@@ -85,14 +119,57 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
         section_blocks = all_blocks[start_index : end_index]
 
         for block in section_blocks:
-            # Handle paragraphs with simple placeholder text
+            # Handle paragraphs with enhanced key matching for hierarchical content
             if isinstance(block, docx.text.paragraph.Paragraph):
+                block_text = block.text.strip()
+                if not block_text:
+                    continue
+                    
+                best_match_key = None
+                best_match_score = 0
+                
                 for key, data_obj in ai_json_data.items():
-                    if key in block.text and isinstance(data_obj, dict):
-                        value = data_obj.get("value", "")
-                        source = data_obj.get("source", "N/A")
-                        block.text = block.text.replace(key, value)
+                    if not isinstance(data_obj, dict):
+                        continue
+                        
+                    # Enhanced matching for hierarchical AI keys
+                    score = 0
+                    
+                    # Method 1: Direct substring match
+                    if key in block_text:
+                        score = 100
+                    # Method 2: Extract content after the last dash/colon and match
+                    elif ' - ' in key:
+                        key_content = key.split(' - ')[-1]  # Get part after last dash
+                        if key_content in block_text:
+                            score = 90
+                    elif ': ' in key:
+                        key_parts = key.split(': ')
+                        if len(key_parts) > 1 and key_parts[-1] in block_text:
+                            score = 85
+                    # Method 3: Word overlap scoring
+                    else:
+                        key_words = set(w.lower() for w in key.split() if len(w) > 3)
+                        block_words = set(w.lower() for w in block_text.split() if len(w) > 3)
+                        if key_words and block_words:
+                            overlap = len(key_words.intersection(block_words))
+                            if overlap > 0:
+                                score = (overlap / len(key_words)) * 80
+                    
+                    if score > best_match_score:
+                        best_match_score = score
+                        best_match_key = key
+                
+                # Apply the best match if score is high enough
+                if best_match_key and best_match_score >= 70:
+                    value = ai_json_data[best_match_key].get("value", "")
+                    source = ai_json_data[best_match_key].get("source", "N/A")
+                    
+                    if value and value != "INFO_NOT_FOUND":
+                        # Replace instruction text with AI content
+                        block.text = value
                         add_comment(block, f"Source: {source}")
+                        print(f"  > Filled hierarchical content (score {best_match_score:.0f}): {best_match_key[:50]}...")
 
             # Handle tables with intelligent key matching
             elif isinstance(block, docx.table.Table):
