@@ -35,8 +35,8 @@ for target_idx, target in enumerate(pdd_targets):
     start_marker = target[1]
     end_marker = pdd_targets[target_idx + 1][1] if target_idx + 1 < len(pdd_targets) else "Appendix"
 
-    # Status check remains the same as your original
-    current_output_text = load_word_doc_to_string("auto_pdd_output")
+    # Status check - use the SAME document file that processing uses
+    current_output_text = load_word_doc_to_string(output_path)
     start_loc_output = find_target_location(target, current_output_text)
     end_loc_output = find_target_location(pdd_targets[target_idx + 1], current_output_text) if target_idx + 1 < len(pdd_targets) else -1
     section_content_from_output = current_output_text[start_loc_output:end_loc_output] if end_loc_output != -1 else current_output_text[start_loc_output:]

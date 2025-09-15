@@ -75,6 +75,7 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
 
         start_index, end_index = -1, len(all_blocks)
         start_heading_level = 0
+        matches_found = []
         
         for i, block in enumerate(all_blocks):
             if isinstance(block, docx.text.paragraph.Paragraph):
@@ -85,9 +86,12 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                 if (text == start_marker or 
                     (len(start_marker.split()) > 1 and start_marker in text and
                      not ('\t' in text and any(char.isdigit() for char in text.split('\t')[-1])))):
-                    start_index = i
-                    start_heading_level = current_heading_level
-                    print(f"  > Found start section '{text}' at heading level {start_heading_level}")
+                    matches_found.append(f"Block {i}: '{text}' (Level {current_heading_level})")
+                    # Only use the FIRST valid match to avoid loop issues
+                    if start_index == -1:
+                        start_index = i
+                        start_heading_level = current_heading_level
+                        print(f"  > Selected start section '{text}' at heading level {start_heading_level} (Block {i})")
                     
                 # Find end marker - heading level aware
                 elif start_index != -1:
@@ -106,7 +110,13 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
         
         if start_index == -1:
             print(f"  > WARNING: Start marker '{start_marker}' not found.")
+            if matches_found:
+                print(f"  > Potential matches found: {matches_found}")
             return
+        else:
+            if len(matches_found) > 1:
+                print(f"  > Multiple matches found: {matches_found}")
+                print(f"  > Using first valid match: Block {start_index}")
 
         # Fix for section skipping: Find or insert the status paragraph correctly.
         status_p_index = start_index + 1
@@ -123,6 +133,10 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
             if isinstance(block, docx.text.paragraph.Paragraph):
                 block_text = block.text.strip()
                 if not block_text:
+                    continue
+                
+                # Skip headings - don't replace heading text with AI content
+                if get_heading_level(block) > 0:
                     continue
                     
                 best_match_key = None
@@ -144,9 +158,16 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                         if key_content in block_text:
                             score = 90
                     elif ': ' in key:
+                        # Try both prefix and suffix matching
                         key_parts = key.split(': ')
-                        if len(key_parts) > 1 and key_parts[-1] in block_text:
+                        key_prefix = key_parts[0].strip()  # Part before colon
+                        
+                        # Check if prefix matches (e.g., "General eligibility" in document)
+                        if key_prefix in block_text:
                             score = 85
+                        # Check if suffix matches
+                        elif len(key_parts) > 1 and key_parts[-1] in block_text:
+                            score = 80
                     # Method 3: Word overlap scoring
                     else:
                         key_words = set(w.lower() for w in key.split() if len(w) > 3)
@@ -160,16 +181,57 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                         best_match_score = score
                         best_match_key = key
                 
-                # Apply the best match if score is high enough
+                # Apply the best match if score is high enough, OR fill with INFO_NOT_FOUND if no match
                 if best_match_key and best_match_score >= 70:
                     value = ai_json_data[best_match_key].get("value", "")
                     source = ai_json_data[best_match_key].get("source", "N/A")
                     
-                    if value and value != "INFO_NOT_FOUND":
-                        # Replace instruction text with AI content
-                        block.text = value
-                        add_comment(block, f"Source: {source}")
-                        print(f"  > Filled hierarchical content (score {best_match_score:.0f}): {best_match_key[:50]}...")
+                    # Process ALL content - whether it has value or INFO_NOT_FOUND
+                    if value:
+                        if value != "INFO_NOT_FOUND":
+                            # Special handling for checkbox content - detect by indentation and context
+                            is_checkbox_option = (
+                                block_text.startswith('☐') or block_text.startswith('[ ]') or block_text.startswith('[X]') or
+                                (block_text.startswith('  ') and any(option in block_text for option in ['location', 'grouped', 'project']))
+                            )
+                            
+                            if is_checkbox_option:
+                                # This is a checkbox - handle Yes/No responses
+                                if value.lower() in ['yes', 'y', 'true', '1']:
+                                    # Check the box and keep the original text
+                                    original_text = block_text.replace('☐', '').replace('[ ]', '').replace('[X]', '').strip()
+                                    block.text = f"☒ {original_text}"
+                                    add_comment(block, f"Checked based on: {source}")
+                                    print(f"  > Checked checkbox (score {best_match_score:.0f}): {best_match_key[:50]}...")
+                                elif value.lower() in ['no', 'n', 'false', '0']:
+                                    # Leave unchecked but ensure proper formatting
+                                    original_text = block_text.replace('☐', '').replace('[ ]', '').replace('[X]', '').strip()
+                                    block.text = f"☐ {original_text}"
+                                    add_comment(block, f"Unchecked based on: {source}")
+                                    print(f"  > Left checkbox unchecked (score {best_match_score:.0f}): {best_match_key[:50]}...")
+                                else:
+                                    # Non-boolean response for checkbox - replace text
+                                    block.text = value
+                                    add_comment(block, f"Source: {source}")
+                                    print(f"  > Filled checkbox content (score {best_match_score:.0f}): {best_match_key[:50]}...")
+                            else:
+                                # Regular text replacement
+                                block.text = value
+                                add_comment(block, f"Source: {source}")
+                                print(f"  > Filled hierarchical content (score {best_match_score:.0f}): {best_match_key[:50]}...")
+                        else:
+                            # Handle INFO_NOT_FOUND case
+                            key_description = best_match_key.split(': ')[-1] if ': ' in best_match_key else best_match_key
+                            block.text = f"INFO_NOT_FOUND: {key_description}"
+                            add_comment(block, f"Information not found in source documents")
+                            print(f"  > Filled with INFO_NOT_FOUND (score {best_match_score:.0f}): {best_match_key[:50]}...")
+                
+                # Handle blocks that don't match any AI key (score < 70)
+                elif block_text and not block_text.startswith("INFO_NOT_FOUND"):
+                    # This is content that doesn't match any AI key - mark as not found
+                    block.text = f"INFO_NOT_FOUND: {block_text[:100]}"
+                    add_comment(block, f"No matching AI response found for this content")
+                    print(f"  > Filled with INFO_NOT_FOUND (no match): {block_text[:50]}...")
 
             # Handle tables with intelligent key matching
             elif isinstance(block, docx.table.Table):
@@ -185,8 +247,16 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                             data = ai_json_data[label_text]
                             value = data.get("value", "")
                             source = data.get("source", "N/A")
-                            value_cell.text = value
+                            # Fill with actual value or INFO_NOT_FOUND message
+                            if value == "INFO_NOT_FOUND":
+                                value_cell.text = f"INFO_NOT_FOUND: {label_text}"
+                            else:
+                                value_cell.text = value
                             add_comment(value_cell.paragraphs[0], f"Source: {source}")
+                        else:
+                            # No AI data for this table row - mark as not found
+                            value_cell.text = f"INFO_NOT_FOUND: {label_text}"
+                            add_comment(value_cell.paragraphs[0], f"No AI response found for this field")
                 
                 # Logic for multi-column data tables (e.g., Audit History)
                 else:
@@ -216,9 +286,18 @@ def replace_section_in_word_doc(doc_path, start_marker, end_marker, ai_json_data
                                 data = ai_json_data[best_match_key]
                                 value = data.get("value", "")
                                 source = data.get("source", "N/A")
-                                cell.text = value
+                                # Fill with actual value or INFO_NOT_FOUND message
+                                if value == "INFO_NOT_FOUND":
+                                    cell.text = f"INFO_NOT_FOUND: {clean_row_context} - {header}"
+                                else:
+                                    cell.text = value
                                 if cell.paragraphs:
                                     add_comment(cell.paragraphs[0], f"Source: {source}")
+                            else:
+                                # No matching AI key for this table cell - mark as not found
+                                cell.text = f"INFO_NOT_FOUND: {clean_row_context} - {header}"
+                                if cell.paragraphs:
+                                    add_comment(cell.paragraphs[0], f"No AI response found for this field")
 
         doc.save(doc_path)
         print(f"Successfully updated section '{start_marker}' in {os.path.basename(doc_path)}.")
